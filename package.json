@@ -1,0 +1,53 @@
+{
+  "name": "daily_ai_news",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test:rss": "ts-node -e \"import('./src/rssFetcher').then(m => m.fetchAllFeeds().then(articles => console.log('Fetched', articles.length, 'articles')))",
+    "test:podcast": "ts-node src/testPodcast.ts",
+    "test:tts": "ts-node src/testTTS.ts",
+    "send:podcast": "ts-node src/testEmailPodcast.ts",
+    "send:podcast:custom": "ts-node src/testEmailPodcast.ts",
+    "get-refresh-token": "ts-node src/getRefreshToken.ts",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write src/**/*.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "ai",
+    "news",
+    "email",
+    "typescript",
+    "node"
+  ],
+  "author": "",
+  "license": "ISC",
+  "description": "Daily AI News - A TypeScript project for sending AI news updates via email",
+  "dependencies": {
+    "@deepgram/sdk": "^4.11.2",
+    "dotenv": "^17.2.2",
+    "googleapis": "^160.0.0",
+    "nodemailer": "^7.0.6",
+    "openai": "^5.23.0",
+    "rss-parser": "^3.13.0",
+    "striptags": "^3.2.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.36.0",
+    "@types/node": "^24.5.2",
+    "@types/nodemailer": "^7.0.1",
+    "@types/striptags": "^0.0.5",
+    "@typescript-eslint/eslint-plugin": "^8.44.1",
+    "@typescript-eslint/parser": "^8.44.1",
+    "eslint": "^9.36.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "prettier": "^3.6.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
+  }
+}
