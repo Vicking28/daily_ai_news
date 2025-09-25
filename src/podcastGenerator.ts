@@ -102,33 +102,3 @@ Generate the podcast script now:`;
   }
 }
 
-/**
- * Estimates the reading time for a given text
- * @param text - Text to analyze
- * @returns Object with word count and estimated reading time
- */
-export function estimateReadingTime(text: string): {
-  wordCount: number;
-  estimatedMinutes: number;
-} {
-  const wordCount = text.split(/\s+/).length;
-  const wordsPerMinute = 200; // Average speaking rate
-  const estimatedMinutes = Math.round((wordCount / wordsPerMinute) * 10) / 10;
-
-  return {
-    wordCount,
-    estimatedMinutes,
-  };
-}
-
-/**
- * Formats a podcast script with proper spacing and structure
- * @param script - Raw podcast script
- * @returns Formatted script with better readability
- */
-export function formatPodcastScript(script: string): string {
-  return script
-    .replace(/\n\n+/g, '\n\n') // Normalize paragraph spacing
-    .replace(/([.!?])\s*([A-Z])/g, '$1\n\n$2') // Add breaks after sentences
-    .trim();
-}

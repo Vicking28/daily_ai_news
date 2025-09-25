@@ -1,21 +1,16 @@
 {
   "name": "daily_ai_news",
   "version": "1.0.0",
-  "main": "dist/index.js",
+  "main": "dist/testEmailPodcast.js",
   "scripts": {
-    "dev": "ts-node src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
-    "test:rss": "ts-node -e \"import('./src/rssFetcher').then(m => m.fetchAllFeeds().then(articles => console.log('Fetched', articles.length, 'articles')))",
-    "test:podcast": "ts-node src/testPodcast.ts",
-    "test:tts": "ts-node src/testTTS.ts",
+    "start": "node dist/testEmailPodcast.js",
     "send:podcast": "ts-node src/testEmailPodcast.ts",
     "send:podcast:custom": "ts-node src/testEmailPodcast.ts",
     "get-refresh-token": "ts-node src/getRefreshToken.ts",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
-    "format": "prettier --write src/**/*.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "format": "prettier --write src/**/*.ts"
   },
   "keywords": [
     "ai",

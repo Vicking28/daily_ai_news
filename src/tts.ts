@@ -166,16 +166,6 @@ export async function synthesizePodcast(
   }
 }
 
-/**
- * Estimates the duration of the generated audio based on text length
- * @param script - The script text
- * @returns Estimated duration in seconds
- */
-export function estimateAudioDuration(script: string): number {
-  const wordCount = script.split(/\s+/).length;
-  const wordsPerMinute = 150; // Average speaking rate for TTS
-  return Math.round((wordCount / wordsPerMinute) * 60);
-}
 
 /**
  * Validates that the output path has a valid audio extension

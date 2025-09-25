@@ -20,18 +20,14 @@ A TypeScript project for gathering AI news from multiple RSS feeds, generating A
 ```
 daily_ai_news/
 ├── src/                    # Source TypeScript files
-│   ├── index.ts           # Main application entry point
-│   ├── email.ts           # Basic email functionality
-│   ├── emailPodcast.ts    # Daily podcast email automation
+│   ├── emailPodcast.ts    # Main daily podcast email automation
 │   ├── rssFetcher.ts      # RSS feed aggregation
 │   ├── podcastGenerator.ts # AI-powered podcast script generation
 │   ├── tts.ts             # Text-to-speech conversion
-│   ├── testPodcast.ts     # Podcast generation testing
-│   ├── testTTS.ts         # Complete TTS testing
-│   └── testEmailPodcast.ts # Email podcast testing
-├── config/                # Configuration files
-│   └── config.ts          # Environment variable configuration
-├── output/                # Generated files
+│   ├── driveUploader.ts   # Google Drive integration
+│   ├── getRefreshToken.ts # Google OAuth2 refresh token helper
+│   └── testEmailPodcast.ts # Main application entry point
+├── output/                # Generated files (ignored by git)
 │   ├── podcast.mp3        # Generated podcast audio
 │   └── podcast.txt        # Generated podcast script
 ├── dist/                  # Compiled JavaScript output
@@ -145,7 +141,18 @@ The project can automatically upload podcast text files to Google Drive for easy
    - `client_secret`
 
 #### Get Refresh Token
-1. Install Google OAuth2 Playground: [OAuth2 Playground](https://developers.google.com/oauthplayground/)
+
+**Option 1: Using the Built-in Helper (Recommended)**
+1. Add your `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to your `.env` file
+2. Run the built-in helper:
+   ```bash
+   npm run get-refresh-token
+   ```
+3. Follow the interactive prompts to get your refresh token
+4. Copy the generated refresh token to your `.env` file
+
+**Option 2: Manual OAuth2 Playground**
+1. Visit [Google OAuth2 Playground](https://developers.google.com/oauthplayground/)
 2. Click the gear icon (⚙️) → "Use your own OAuth credentials"
 3. Enter your `client_id` and `client_secret`
 4. In the left panel, find "Drive API v3" → "https://www.googleapis.com/auth/drive.file"
@@ -199,13 +206,6 @@ npm run send:podcast:custom user1@gmail.com user2@gmail.com user3@gmail.com
 
 ## 🚀 Usage
 
-### Development Mode
-Run the application in development mode with hot reloading:
-
-```bash
-npm run dev
-```
-
 ### Production Build
 Build the TypeScript code for production:
 
@@ -220,25 +220,11 @@ Execute the compiled JavaScript:
 npm start
 ```
 
-### Test RSS Feeds Only
-Test just the RSS feed functionality:
+### Get Google Refresh Token
+Get a Google OAuth2 refresh token for Drive integration:
 
 ```bash
-npm run test:rss
-```
-
-### Test Podcast Generation
-Test the AI-powered podcast script generation:
-
-```bash
-npm run test:podcast
-```
-
-### Test Complete TTS Pipeline
-Test the complete pipeline: RSS → AI Script → Audio Generation:
-
-```bash
-npm run test:tts
+npm run get-refresh-token
 ```
 
 ### Send Daily Podcast Email

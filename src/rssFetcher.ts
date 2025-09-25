@@ -16,7 +16,6 @@ const RSS_FEEDS = [
   'https://www.analyticsvidhya.com/blog/category/artificial-intelligence/feed/',
   'https://www.artificialintelligence-news.com/feed/',
   'https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml',
-  'https://marktechpost.com/feed',
   'https://research.google/blog/rss',
   'https://dailyai.com/feed',
 ];
@@ -150,19 +149,3 @@ export async function fetchAllFeeds(): Promise<Article[]> {
   }
 }
 
-/**
- * Gets a summary of articles by source
- * @param articles - Array of articles
- * @returns Object with source names and article counts
- */
-export function getArticlesBySource(
-  articles: Article[]
-): Record<string, number> {
-  return articles.reduce(
-    (acc, article) => {
-      acc[article.source] = (acc[article.source] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
-}
