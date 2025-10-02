@@ -116,9 +116,61 @@ async function registerSlashCommands(): Promise<void> {
       .setDescription('Send daily podcast email manually')
       .addStringOption(option => {
         const stringOption = option
-          .setName('recipients')
-          .setDescription('Email recipients for the podcast (select multiple)')
+          .setName('recipient1')
+          .setDescription('First email recipient (required)')
           .setRequired(true);
+        
+        // Add choices for each email recipient
+        emailChoices.forEach(choice => {
+          stringOption.addChoices(choice);
+        });
+        
+        return stringOption;
+      })
+      .addStringOption(option => {
+        const stringOption = option
+          .setName('recipient2')
+          .setDescription('Second email recipient (optional)')
+          .setRequired(false);
+        
+        // Add choices for each email recipient
+        emailChoices.forEach(choice => {
+          stringOption.addChoices(choice);
+        });
+        
+        return stringOption;
+      })
+      .addStringOption(option => {
+        const stringOption = option
+          .setName('recipient3')
+          .setDescription('Third email recipient (optional)')
+          .setRequired(false);
+        
+        // Add choices for each email recipient
+        emailChoices.forEach(choice => {
+          stringOption.addChoices(choice);
+        });
+        
+        return stringOption;
+      })
+      .addStringOption(option => {
+        const stringOption = option
+          .setName('recipient4')
+          .setDescription('Fourth email recipient (optional)')
+          .setRequired(false);
+        
+        // Add choices for each email recipient
+        emailChoices.forEach(choice => {
+          stringOption.addChoices(choice);
+        });
+        
+        return stringOption;
+      })
+      .addStringOption(option => {
+        const stringOption = option
+          .setName('recipient5')
+          .setDescription('Fifth email recipient (optional)')
+          .setRequired(false);
         
         // Add choices for each email recipient
         emailChoices.forEach(choice => {
@@ -402,20 +454,26 @@ export function setupSlashCommandHandlers(): void {
 async function handleSendPodcastCommand(interaction: any): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
 
-  const recipientsValue = interaction.options.getString('recipients');
+  // Collect all recipient options (recipient1 is required, others are optional)
+  const recipientList: string[] = [];
   
-  // Parse recipients - could be single email or comma-separated list
-  const recipientList = recipientsValue
-    ?.split(',')
-    .map((email: string) => email.trim())
-    .filter((email: string) => email.length > 0) || [];
+  // Get all recipient options
+  for (let i = 1; i <= 5; i++) {
+    const recipient = interaction.options.getString(`recipient${i}`);
+    if (recipient && recipient.trim().length > 0) {
+      recipientList.push(recipient.trim());
+    }
+  }
+
+  // Remove duplicates while preserving order
+  const uniqueRecipients = [...new Set(recipientList)];
 
   try {
     const { sendDailyPodcastEmail } = await import('./emailPodcast');
-    await sendDailyPodcastEmail(recipientList);
+    await sendDailyPodcastEmail(uniqueRecipients);
     
     await interaction.editReply({
-      content: `✅ Daily podcast email sent successfully to ${recipientList.length} recipient(s): ${recipientList.join(', ')}`
+      content: `✅ Daily podcast email sent successfully to ${uniqueRecipients.length} recipient(s): ${uniqueRecipients.join(', ')}`
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
