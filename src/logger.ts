@@ -358,6 +358,13 @@ export function setupSlashCommandHandlers(): void {
   discordClient.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
+    // Check if interaction is too old (Discord has a 3-second timeout)
+    const interactionAge = Date.now() - interaction.createdTimestamp;
+    if (interactionAge > 2500) { // 2.5 seconds safety margin
+      console.log('⚠️ Interaction too old, ignoring');
+      return;
+    }
+
     try {
       switch (interaction.commandName) {
         case 'send-podcast':
@@ -370,15 +377,33 @@ export function setupSlashCommandHandlers(): void {
           await handleTestPodcastCommand(interaction);
           break;
         default:
-          await interaction.reply({ content: 'Unknown command', ephemeral: true });
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: 'Unknown command', ephemeral: true });
+          }
       }
     } catch (error) {
       console.error('❌ Error handling slash command:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      await interaction.reply({ 
-        content: `❌ Error: ${errorMessage}`, 
-        ephemeral: true 
-      });
+      
+      // Try to respond with error if interaction hasn't been acknowledged yet
+      if (!interaction.replied && !interaction.deferred) {
+        try {
+          await interaction.reply({ 
+            content: '❌ An error occurred while processing your command', 
+            ephemeral: true 
+          });
+        } catch (replyError) {
+          console.error('❌ Failed to send error reply:', replyError);
+        }
+      } else if (interaction.deferred && !interaction.replied) {
+        // If we deferred but haven't replied yet, edit the reply
+        try {
+          await interaction.editReply({
+            content: '❌ An error occurred while processing your command'
+          });
+        } catch (editError) {
+          console.error('❌ Failed to edit error reply:', editError);
+        }
+      }
     }
   });
 }
@@ -387,6 +412,16 @@ export function setupSlashCommandHandlers(): void {
  * Handle the send-podcast slash command
  */
 async function handleSendPodcastCommand(interaction: any): Promise<void> {
+  // Check if user is authorized
+  const authorizedUserId = process.env.DISCORD_USER_ID;
+  if (authorizedUserId && interaction.user.id !== authorizedUserId) {
+    await interaction.reply({ 
+      content: '❌ You are not authorized to use this command.', 
+      ephemeral: true 
+    });
+    return;
+  }
+
   await interaction.deferReply({ ephemeral: true });
 
   try {
@@ -414,8 +449,21 @@ async function handleSendPodcastCommand(interaction: any): Promise<void> {
  * Handle the status slash command
  */
 async function handleStatusCommand(interaction: any): Promise<void> {
+  // Check if user is authorized
+  const authorizedUserId = process.env.DISCORD_USER_ID;
+  if (authorizedUserId && interaction.user.id !== authorizedUserId) {
+    await interaction.reply({ 
+      content: '❌ You are not authorized to use this command.', 
+      ephemeral: true 
+    });
+    return;
+  }
+
   // Default to production if NODE_ENV is undefined
   const nodeEnv = process.env.NODE_ENV || 'production';
+
+  // Get current timestamp in seconds for Discord markdown
+  const now = Math.floor(Date.now() / 1000);
 
   const embed = new EmbedBuilder()
     .setColor(0x00FF00) // Green
@@ -423,7 +471,7 @@ async function handleStatusCommand(interaction: any): Promise<void> {
     .setDescription('Daily AI News service is running normally')
     .addFields(
       { name: 'Scheduler', value: 'Active (6:30 AM GMT+2)', inline: true },
-      { name: 'Last Check', value: new Date().toLocaleString(), inline: true },
+      { name: 'Last Check', value: `<t:${now}:F>`, inline: true },
       { name: 'Environment', value: nodeEnv, inline: true }
     )
     .setTimestamp();
@@ -435,6 +483,16 @@ async function handleStatusCommand(interaction: any): Promise<void> {
  * Handle the test-podcast slash command
  */
 async function handleTestPodcastCommand(interaction: any): Promise<void> {
+  // Check if user is authorized
+  const authorizedUserId = process.env.DISCORD_USER_ID;
+  if (authorizedUserId && interaction.user.id !== authorizedUserId) {
+    await interaction.reply({ 
+      content: '❌ You are not authorized to use this command.', 
+      ephemeral: true 
+    });
+    return;
+  }
+
   await interaction.deferReply({ ephemeral: true });
 
   const recipient = interaction.options.getString('recipient');
