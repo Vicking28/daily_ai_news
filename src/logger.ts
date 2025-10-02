@@ -61,6 +61,7 @@ async function initializeDiscord(): Promise<void> {
  */
 function getEmailRecipientsForChoices(): { name: string; value: string }[] {
   const choices: { name: string; value: string }[] = [];
+  const allEmails = new Set<string>(); // Use Set to avoid duplicates
   
   // Check for EMAIL_RECIPIENTS first (comma-separated list)
   if (process.env.EMAIL_RECIPIENTS) {
@@ -70,17 +71,26 @@ function getEmailRecipientsForChoices(): { name: string; value: string }[] {
       .filter(email => email.length > 0);
     
     recipients.forEach(email => {
-      choices.push({ name: email, value: email });
+      allEmails.add(email);
     });
   }
   
-  // Add EMAIL_TO if it exists and not already in the list
+  // Add EMAIL_TO if it exists (could also be comma-separated)
   if (process.env.EMAIL_TO) {
-    const emailTo = process.env.EMAIL_TO.trim();
-    if (!choices.find(choice => choice.value === emailTo)) {
-      choices.push({ name: emailTo, value: emailTo });
-    }
+    const emailToValues = process.env.EMAIL_TO
+      .split(',')
+      .map(email => email.trim())
+      .filter(email => email.length > 0);
+    
+    emailToValues.forEach(email => {
+      allEmails.add(email);
+    });
   }
+  
+  // Convert Set to choices array
+  allEmails.forEach(email => {
+    choices.push({ name: email, value: email });
+  });
   
   // Default fallback if no emails configured
   if (choices.length === 0) {
@@ -107,7 +117,7 @@ async function registerSlashCommands(): Promise<void> {
       .addStringOption(option => {
         const stringOption = option
           .setName('recipients')
-          .setDescription('Email recipients for the podcast')
+          .setDescription('Email recipients for the podcast (select multiple)')
           .setRequired(true);
         
         // Add choices for each email recipient
@@ -392,15 +402,20 @@ export function setupSlashCommandHandlers(): void {
 async function handleSendPodcastCommand(interaction: any): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
 
-  const recipient = interaction.options.getString('recipients');
-  const recipientList = [recipient]; // Convert single recipient to array
+  const recipientsValue = interaction.options.getString('recipients');
+  
+  // Parse recipients - could be single email or comma-separated list
+  const recipientList = recipientsValue
+    ?.split(',')
+    .map((email: string) => email.trim())
+    .filter((email: string) => email.length > 0) || [];
 
   try {
     const { sendDailyPodcastEmail } = await import('./emailPodcast');
     await sendDailyPodcastEmail(recipientList);
     
     await interaction.editReply({
-      content: `✅ Daily podcast email sent successfully to ${recipient}`
+      content: `✅ Daily podcast email sent successfully to ${recipientList.length} recipient(s): ${recipientList.join(', ')}`
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
