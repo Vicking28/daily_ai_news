@@ -1,6 +1,4 @@
 import nodemailer, { Transporter } from 'nodemailer';
-import fs from 'fs';
-import path from 'path';
 import dotenv from 'dotenv';
 import { fetchAllFeeds } from './rssFetcher';
 import { generatePodcastScript } from './podcastGenerator';
@@ -37,17 +35,6 @@ export function createTransporter(): Transporter {
   });
 }
 
-/**
- * Ensures the output directory exists
- */
-function ensureOutputDirectory(): string {
-  const outputDir = path.join(process.cwd(), 'output');
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-    console.log(`📁 Created output directory: ${outputDir}`);
-  }
-  return outputDir;
-}
 
 /**
  * Gets email recipients from environment variables
@@ -75,19 +62,6 @@ export function getEmailRecipients(): string[] {
   return ['zlatnikvince@gmail.com'];
 }
 
-/**
- * Saves the podcast script as a text file with timestamp
- * @param script - The podcast script text
- * @param outputDir - The output directory path
- * @returns Path to the saved text file
- */
-function savePodcastScript(script: string, outputDir: string): string {
-  const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-  const scriptPath = path.join(outputDir, `podcast_${timestamp}.txt`);
-  fs.writeFileSync(scriptPath, script, 'utf8');
-  console.log(`📝 Saved podcast script to: ${scriptPath}`);
-  return scriptPath;
-}
 
 /**
  * Generates bulletpoints from podcast script using AI
@@ -237,39 +211,32 @@ export async function sendDailyPodcastEmail(recipients?: string[]): Promise<void
     const wordCount = script.split(' ').length;
     await logPodcastGeneration(script.length, wordCount);
 
-    // Step 3: Ensure output directory exists
-    const outputDir = ensureOutputDirectory();
-
-    // Step 4: Generate audio file
+    // Step 3: Generate audio file in memory
     console.log('🎤 Step 3: Converting script to speech...');
-    const audioPath = path.join(outputDir, `podcast_${timestamp}.mp3`);
-    await synthesizePodcast(script, audioPath);
-    console.log(`✅ Generated audio file: ${audioPath}\n`);
+    const audioBuffer = await synthesizePodcast(script);
+    console.log(`✅ Generated audio buffer: ${audioBuffer.length} bytes\n`);
 
     // Step 4.5: Get actual MP3 duration
     console.log('⏱️ Getting actual MP3 duration...');
     let actualDuration: number;
     let fileSize: string;
     try {
-      actualDuration = await getMP3Duration(audioPath);
-      const stats = fs.statSync(audioPath);
-      fileSize = `${(stats.size / 1024).toFixed(0)} KB`;
+      actualDuration = await getMP3Duration(audioBuffer);
+      fileSize = `${(audioBuffer.length / 1024).toFixed(0)} KB`;
       console.log(`✅ Actual duration: ${formatDuration(actualDuration)}, File size: ${fileSize}\n`);
     } catch (error) {
       console.log('⚠️ Could not get actual duration, using estimation...');
       // Fallback to estimation
       actualDuration = Math.round(script.length / 2.5);
-      fileSize = 'Unknown';
+      fileSize = `${(audioBuffer.length / 1024).toFixed(0)} KB`;
       console.log(`📊 Estimated duration: ${formatDuration(actualDuration)}\n`);
     }
 
     await logAudioSynthesis(formatDuration(actualDuration), fileSize);
 
-    // Step 5: Save script as text file
-    console.log('📝 Step 4: Saving podcast script...');
-    const scriptPath = path.join(outputDir, `podcast_${timestamp}.txt`);
-    fs.writeFileSync(scriptPath, script, 'utf8');
-    console.log(`✅ Saved script file: ${scriptPath}\n`);
+    // Step 5: Prepare script text (no file saving needed)
+    console.log('📝 Step 4: Preparing podcast script for email...');
+    console.log(`✅ Script prepared for email attachment\n`);
 
 
     // Step 7: Generate bulletpoints from podcast content
@@ -294,7 +261,7 @@ export async function sendDailyPodcastEmail(recipients?: string[]): Promise<void
     await transporter.verify();
     console.log('✅ SMTP server connection verified');
 
-    // Send email with attachments
+    // Send email with in-memory attachments
     const info = await transporter.sendMail({
       from: `"Daily AI News" <${process.env.EMAIL_USER}>`,
       to: emailRecipients[0], // Primary recipient
@@ -304,12 +271,12 @@ export async function sendDailyPodcastEmail(recipients?: string[]): Promise<void
       attachments: [
         {
           filename: `podcast_${timestamp}.txt`,
-          path: scriptPath,
+          content: script,
           contentType: 'text/plain',
         },
         {
           filename: `podcast_${timestamp}.mp3`,
-          path: audioPath,
+          content: audioBuffer,
           contentType: 'audio/mpeg',
         },
       ],
@@ -320,9 +287,7 @@ export async function sendDailyPodcastEmail(recipients?: string[]): Promise<void
     console.log('📬 Preview URL:', nodemailer.getTestMessageUrl(info));
     await logEmailSent(emailRecipients.length, info.messageId || 'Unknown');
 
-    // Clean up temporary files (optional - you might want to keep them)
-    // fs.unlinkSync(scriptPath);
-    // fs.unlinkSync(audioPath);
+    // No cleanup needed since we're using in-memory attachments
 
   } catch (error) {
     console.error('❌ Failed to send daily podcast email:', error);

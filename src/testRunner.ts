@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import dotenv from 'dotenv';
 import { fetchAllFeeds } from './rssFetcher';
 import { generatePodcastScript } from './podcastGenerator';
@@ -20,17 +18,6 @@ dotenv.config();
 // Limit articles for testing (reduces API costs and processing time)
 const TEST_ARTICLE_LIMIT = 10;
 
-/**
- * Ensures the output directory exists
- */
-function ensureOutputDirectory(): string {
-  const outputDir = path.join(process.cwd(), 'output');
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-    console.log(`📁 Created output directory: ${outputDir}`);
-  }
-  return outputDir;
-}
 
 /**
  * Generates bulletpoints from podcast script using AI (copied from emailPodcast.ts)
@@ -132,39 +119,32 @@ export async function sendTestPodcastEmail(recipients?: string[]): Promise<void>
     
     await logPodcastGeneration(script.length, wordCount);
 
-    // Step 3: Ensure output directory exists
-    const outputDir = ensureOutputDirectory();
-
-    // Step 4: Generate audio file
+    // Step 3: Generate audio file in memory
     console.log('🎤 Step 3: Converting TEST script to speech...');
-    const audioPath = path.join(outputDir, `podcast_test_${timestamp}.mp3`);
-    await synthesizePodcast(script, audioPath);
-    console.log(`✅ Generated TEST audio file: ${audioPath}\n`);
+    const audioBuffer = await synthesizePodcast(script);
+    console.log(`✅ Generated TEST audio buffer: ${audioBuffer.length} bytes\n`);
 
     // Step 4.5: Get actual MP3 duration
     console.log('⏱️ Getting actual MP3 duration...');
     let actualDuration: number;
     let fileSize: string;
     try {
-      actualDuration = await getMP3Duration(audioPath);
-      const stats = fs.statSync(audioPath);
-      fileSize = `${(stats.size / 1024).toFixed(0)} KB`;
+      actualDuration = await getMP3Duration(audioBuffer);
+      fileSize = `${(audioBuffer.length / 1024).toFixed(0)} KB`;
       console.log(`✅ Actual duration: ${formatDuration(actualDuration)}, File size: ${fileSize}\n`);
     } catch (error) {
       console.log('⚠️ Could not get actual duration, using estimation...');
       // Fallback to estimation
       actualDuration = Math.round(script.length / 2.5);
-      fileSize = 'Unknown';
+      fileSize = `${(audioBuffer.length / 1024).toFixed(0)} KB`;
       console.log(`📊 Estimated duration: ${formatDuration(actualDuration)}\n`);
     }
 
     await logAudioSynthesis(formatDuration(actualDuration), fileSize);
 
-    // Step 5: Save script as text file
-    console.log('📝 Step 4: Saving TEST podcast script...');
-    const scriptPath = path.join(outputDir, `podcast_test_${timestamp}.txt`);
-    fs.writeFileSync(scriptPath, script, 'utf8');
-    console.log(`✅ Saved TEST script file: ${scriptPath}\n`);
+    // Step 5: Prepare script text (no file saving needed)
+    console.log('📝 Step 4: Preparing TEST podcast script for email...');
+    console.log(`✅ TEST script prepared for email attachment\n`);
 
     // Step 6: Generate bulletpoints from podcast content
     console.log('📝 Step 5: Generating bulletpoints from TEST podcast content...');
@@ -188,7 +168,7 @@ export async function sendTestPodcastEmail(recipients?: string[]): Promise<void>
     await transporter.verify();
     console.log('✅ SMTP server connection verified');
 
-    // Send email with attachments
+    // Send email with in-memory attachments
     const info = await transporter.sendMail({
       from: `"Daily AI News (TEST)" <${process.env.EMAIL_USER}>`,
       to: emailRecipients[0], // Primary recipient
@@ -198,12 +178,12 @@ export async function sendTestPodcastEmail(recipients?: string[]): Promise<void>
       attachments: [
         {
           filename: `podcast_test_${timestamp}.txt`,
-          path: scriptPath,
+          content: script,
           contentType: 'text/plain',
         },
         {
           filename: `podcast_test_${timestamp}.mp3`,
-          path: audioPath,
+          content: audioBuffer,
           contentType: 'audio/mpeg',
         },
       ],
@@ -215,9 +195,7 @@ export async function sendTestPodcastEmail(recipients?: string[]): Promise<void>
     
     await logEmailSent(emailRecipients.length, info.messageId || 'Unknown');
 
-    // Clean up test files (optional)
-    // fs.unlinkSync(scriptPath);
-    // fs.unlinkSync(audioPath);
+    // No cleanup needed since we're using in-memory attachments
 
   } catch (error) {
     console.error('❌ Failed to send TEST podcast email:', error);

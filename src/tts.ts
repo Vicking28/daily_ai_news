@@ -47,12 +47,9 @@ function chunkText(text: string, maxLength: number = 1900): string[] {
 /**
  * Synthesizes a podcast script into MP3 audio using Deepgram TTS
  * @param script - The podcast script text to convert to speech
- * @param outputPath - The file path where the MP3 should be saved
+ * @returns Promise<Buffer> - The MP3 audio data as a Buffer
  */
-export async function synthesizePodcast(
-  script: string,
-  outputPath: string
-): Promise<void> {
+export async function synthesizePodcast(script: string): Promise<Buffer> {
   // Validate Deepgram API key
   if (!process.env.DEEPGRAM_API_KEY) {
     throw new Error(
@@ -68,18 +65,10 @@ export async function synthesizePodcast(
 
   console.log('🎤 Starting text-to-speech synthesis...');
   console.log(`📝 Script length: ${script.length} characters`);
-  console.log(`💾 Output path: ${outputPath}`);
 
   try {
     // Initialize Deepgram client
     const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
-
-    // Ensure output directory exists
-    const outputDir = path.dirname(outputPath);
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-      console.log(`📁 Created output directory: ${outputDir}`);
-    }
 
     // Chunk the script if it's too long
     const textChunks = chunkText(script);
@@ -138,17 +127,14 @@ export async function synthesizePodcast(
     console.log('🔗 Combining audio chunks...');
     const finalAudioBuffer = Buffer.concat(allAudioChunks);
 
-    // Write the audio file
-    fs.writeFileSync(outputPath, finalAudioBuffer);
-
     // Get file size for logging
-    const stats = fs.statSync(outputPath);
-    const fileSizeKB = Math.round(stats.size / 1024);
+    const fileSizeKB = Math.round(finalAudioBuffer.length / 1024);
 
     console.log('✅ Text-to-speech synthesis completed successfully!');
-    console.log(`📁 Audio saved to: ${outputPath}`);
-    console.log(`📊 File size: ${fileSizeKB} KB`);
+    console.log(`📊 Audio buffer size: ${fileSizeKB} KB`);
     console.log(`⏱️ Estimated duration: ${Math.round(script.split(' ').length / 2.5)} seconds`);
+
+    return finalAudioBuffer;
 
   } catch (error) {
     console.error('❌ Text-to-speech synthesis failed:', error);
@@ -167,79 +153,88 @@ export async function synthesizePodcast(
 }
 
 
-/**
- * Validates that the output path has a valid audio extension
- * @param outputPath - The output file path
- * @returns True if the path has a valid audio extension
- */
-export function validateOutputPath(outputPath: string): boolean {
-  const validExtensions = ['.mp3', '.wav', '.m4a', '.ogg'];
-  const ext = path.extname(outputPath).toLowerCase();
-  return validExtensions.includes(ext);
-}
 
 /**
- * Gets the actual duration of an MP3 file using ffprobe
- * @param filePath - Path to the MP3 file
+ * Gets the actual duration of an MP3 buffer using ffprobe
+ * @param audioBuffer - The MP3 audio data as a Buffer
  * @returns Promise<number> - Duration in seconds
  */
-export async function getMP3Duration(filePath: string): Promise<number> {
+export async function getMP3Duration(audioBuffer: Buffer): Promise<number> {
   return new Promise((resolve, reject) => {
-    // Try to use ffprobe if available
-    const ffprobe = spawn('ffprobe', [
-      '-v', 'quiet',
-      '-show_entries', 'format=duration',
-      '-of', 'csv=p=0',
-      filePath
-    ]);
+    // Create a temporary file for ffprobe to read
+    const tempFile = require('path').join(require('os').tmpdir(), `temp_audio_${Date.now()}.mp3`);
+    
+    try {
+      // Write buffer to temporary file
+      require('fs').writeFileSync(tempFile, audioBuffer);
+      
+      // Try to use ffprobe if available
+      const ffprobe = spawn('ffprobe', [
+        '-v', 'quiet',
+        '-show_entries', 'format=duration',
+        '-of', 'csv=p=0',
+        tempFile
+      ]);
 
-    let output = '';
-    let errorOutput = '';
+      let output = '';
+      let errorOutput = '';
 
-    ffprobe.stdout.on('data', (data) => {
-      output += data.toString();
-    });
+      ffprobe.stdout.on('data', (data) => {
+        output += data.toString();
+      });
 
-    ffprobe.stderr.on('data', (data) => {
-      errorOutput += data.toString();
-    });
+      ffprobe.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
 
-    ffprobe.on('close', (code) => {
-      if (code === 0) {
-        const duration = parseFloat(output.trim());
-        if (!isNaN(duration)) {
-          resolve(duration);
-        } else {
-          reject(new Error('Could not parse duration from ffprobe output'));
-        }
-      } else {
-        // Fallback: estimate based on file size (rough approximation)
-        console.log('⚠️ ffprobe not available, using file size estimation');
+      ffprobe.on('close', (code) => {
+        // Clean up temporary file
         try {
-          const stats = fs.statSync(filePath);
-          const fileSizeKB = stats.size / 1024;
+          require('fs').unlinkSync(tempFile);
+        } catch (cleanupError) {
+          // Ignore cleanup errors
+        }
+        
+        if (code === 0) {
+          const duration = parseFloat(output.trim());
+          if (!isNaN(duration)) {
+            resolve(duration);
+          } else {
+            reject(new Error('Could not parse duration from ffprobe output'));
+          }
+        } else {
+          // Fallback: estimate based on buffer size (rough approximation)
+          console.log('⚠️ ffprobe not available, using buffer size estimation');
+          const fileSizeKB = audioBuffer.length / 1024;
           // Rough estimation: ~320KB per minute for MP3
           const estimatedDuration = Math.round((fileSizeKB / 320) * 60);
           resolve(estimatedDuration);
-        } catch (error) {
-          reject(new Error(`Could not get file duration: ${error}`));
         }
-      }
-    });
+      });
 
-    ffprobe.on('error', (error) => {
-      // Fallback: estimate based on file size
-      console.log('⚠️ ffprobe not available, using file size estimation');
-      try {
-        const stats = fs.statSync(filePath);
-        const fileSizeKB = stats.size / 1024;
+      ffprobe.on('error', (error) => {
+        // Clean up temporary file
+        try {
+          require('fs').unlinkSync(tempFile);
+        } catch (cleanupError) {
+          // Ignore cleanup errors
+        }
+        
+        // Fallback: estimate based on buffer size
+        console.log('⚠️ ffprobe not available, using buffer size estimation');
+        const fileSizeKB = audioBuffer.length / 1024;
         // Rough estimation: ~320KB per minute for MP3
         const estimatedDuration = Math.round((fileSizeKB / 320) * 60);
         resolve(estimatedDuration);
-      } catch (fallbackError) {
-        reject(new Error(`Could not get file duration: ${fallbackError}`));
-      }
-    });
+      });
+    } catch (error) {
+      // Fallback: estimate based on buffer size
+      console.log('⚠️ Could not create temporary file, using buffer size estimation');
+      const fileSizeKB = audioBuffer.length / 1024;
+      // Rough estimation: ~320KB per minute for MP3
+      const estimatedDuration = Math.round((fileSizeKB / 320) * 60);
+      resolve(estimatedDuration);
+    }
   });
 }
 
