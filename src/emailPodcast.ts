@@ -1,10 +1,11 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import dotenv from 'dotenv';
 import { fetchAllFeeds } from './rssFetcher';
-import { generatePodcastScript } from './podcastGenerator';
+import { generatePodcastScriptFromSelected } from './podcastGenerator';
+import { selectTopArticles, buildBulletHtmlFromSelected } from './selectArticles';
 import { synthesizePodcast, getMP3Duration, formatDuration } from './tts';
-import { OpenAI } from 'openai';
 import { logProcessStart, logSuccess, logError, logInfo, logNewsCollection, logPodcastGeneration, logAudioSynthesis, logEmailSent } from './logger';
+import { Article } from './types';
 
 // Load environment variables
 dotenv.config();
@@ -64,87 +65,14 @@ export function getEmailRecipients(): string[] {
 
 
 /**
- * Generates bulletpoints from podcast script using AI
- * @param script - The podcast script text
- * @returns Array of bulletpoint strings
- */
-async function generateBulletpoints(script: string): Promise<string[]> {
-  // Validate OpenAI configuration
-  if (!process.env.OPENAI_API_KEY) {
-    console.log('⚠️ OpenAI API key not available, using fallback bulletpoints');
-    return ['AI news summary generated from podcast content'];
-  }
-
-  try {
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-
-    const prompt = `Extract 5-7 concise bulletpoints from this podcast script that summarize the key AI and technology news stories. Each bulletpoint should be 1-2 sentences and capture the most important developments.
-
-PODCAST SCRIPT:
-${script}
-
-REQUIREMENTS:
-- Extract 5-7 bulletpoints maximum
-- Each bulletpoint should be 1-2 sentences
-- Focus on the most significant AI/tech developments
-- Make them engaging and informative
-- Use present tense and active voice
-- Avoid redundant information
-
-Return only the bulletpoints, one per line, without numbering or bullet symbols.`;
-
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert at extracting key information from AI and technology content. You create concise, engaging bulletpoints that capture the most important developments.',
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      max_tokens: 500,
-      temperature: 0.3,
-    });
-
-    const response = completion.choices[0]?.message?.content;
-    if (!response) {
-      throw new Error('No response from OpenAI');
-    }
-
-    // Parse the response into individual bulletpoints
-    const bulletpoints = response
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .slice(0, 7); // Limit to 7 bulletpoints max
-
-    console.log(`✅ Generated ${bulletpoints.length} bulletpoints from podcast content`);
-    return bulletpoints;
-
-  } catch (error) {
-    console.error('❌ Failed to generate bulletpoints:', error);
-    // Fallback to generic bulletpoints
-    return ['AI news summary generated from podcast content'];
-  }
-}
-
-/**
- * Generates HTML email content with top articles
- * @param articles - Array of articles
+ * Generates HTML email content with selected articles
+ * @param selectedArticles - Array of articles that were selected for the podcast
  * @param scriptLength - Length of the generated script
  * @param actualDuration - Actual duration of the MP3 file in seconds
- * @param bulletpoints - Array of bulletpoints from podcast content
  * @returns HTML email content
  */
-export function generateEmailContent(articles: any[], scriptLength: number, actualDuration: number, bulletpoints: string[]): string {
-  const bulletpointList = bulletpoints
-    .map(bulletpoint => `<li style="margin-bottom: 8px;">${bulletpoint}</li>`)
-    .join('\n');
+export function generateEmailContent(selectedArticles: Article[], scriptLength: number, actualDuration: number): string {
+  const bulletpointHtml = buildBulletHtmlFromSelected(selectedArticles, 10);
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -153,13 +81,11 @@ export function generateEmailContent(articles: any[], scriptLength: number, actu
       </h2>
       
       <p style="font-size: 16px; line-height: 1.6; color: #555;">
-        Good morning! Here's your daily dose of AI and technology news, curated and transformed into an engaging podcast format.
+        Good morning, 49x team! Here's your daily dose of AI and technology news, curated and transformed into an engaging podcast format to keep you updated on the latest developments in AI coding and technology.
       </p>
       
       <h3 style="color: #333; margin-top: 30px;">📰 Today's Top News:</h3>
-      <ul style="font-size: 14px; line-height: 1.8; color: #555; list-style-type: disc; padding-left: 20px;">
-        ${bulletpointList}
-      </ul>
+      ${bulletpointHtml}
       
       <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 30px 0;">
         <h3 style="color: #333; margin-top: 0;">🎧 Your Podcast is Ready!</h3>
@@ -187,7 +113,7 @@ export function generateEmailContent(articles: any[], scriptLength: number, actu
 }
 
 /**
- * Sends a daily AI podcast email with attachments
+ * Sends a daily AI podcast email with attachments using two-pass pipeline
  * @param recipients - Optional array of email addresses to send to (defaults to EMAIL_RECIPIENTS from .env)
  */
 export async function sendDailyPodcastEmail(recipients?: string[]): Promise<void> {
@@ -198,25 +124,31 @@ export async function sendDailyPodcastEmail(recipients?: string[]): Promise<void
   const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
   try {
-    // Step 1: Fetch RSS feeds
+    // PASS A: Article Selection
     console.log('📡 Step 1: Fetching RSS feeds...');
     const allArticles = await fetchAllFeeds();
     console.log(`✅ Fetched ${allArticles.length} articles from RSS feeds\n`);
     await logNewsCollection(allArticles.length, 12); // Assuming 12 RSS sources
 
-    // Step 2: Generate podcast script
-    console.log('🤖 Step 2: Generating podcast script with AI...');
-    const script = await generatePodcastScript(allArticles); // Use all articles
+    console.log('🔍 Step 2: Selecting top AI articles...');
+    const { selectedIds } = await selectTopArticles(allArticles, { maxCount: 18 });
+    const selectedArticles = allArticles.filter(article => selectedIds.includes(article.id));
+    console.log(`✅ Selected ${selectedArticles.length} articles for podcast\n`);
+    await logInfo(`Selected ${selectedArticles.length} articles from ${allArticles.length} total articles`);
+
+    // PASS B: Podcast Generation
+    console.log('🤖 Step 3: Generating podcast script from selected articles...');
+    const script = await generatePodcastScriptFromSelected(selectedArticles);
     console.log(`✅ Generated script: ${script.length} characters\n`);
     const wordCount = script.split(' ').length;
     await logPodcastGeneration(script.length, wordCount);
 
-    // Step 3: Generate audio file in memory
-    console.log('🎤 Step 3: Converting script to speech...');
+    // Step 4: Generate audio file in memory
+    console.log('🎤 Step 4: Converting script to speech...');
     const audioBuffer = await synthesizePodcast(script);
     console.log(`✅ Generated audio buffer: ${audioBuffer.length} bytes\n`);
 
-    // Step 4.5: Get actual MP3 duration
+    // Step 5: Get actual MP3 duration
     console.log('⏱️ Getting actual MP3 duration...');
     let actualDuration: number;
     let fileSize: string;
@@ -234,27 +166,20 @@ export async function sendDailyPodcastEmail(recipients?: string[]): Promise<void
 
     await logAudioSynthesis(formatDuration(actualDuration), fileSize);
 
-    // Step 5: Prepare script text (no file saving needed)
-    console.log('📝 Step 4: Preparing podcast script for email...');
+    // Step 6: Prepare script text (no file saving needed)
+    console.log('📝 Step 5: Preparing podcast script for email...');
     console.log(`✅ Script prepared for email attachment\n`);
 
+    // Step 7: Prepare email content with selected articles
+    console.log('📧 Step 6: Preparing email content...');
+    const htmlContent = generateEmailContent(selectedArticles, script.length, actualDuration);
 
-    // Step 7: Generate bulletpoints from podcast content
-    console.log('📝 Step 6: Generating bulletpoints from podcast content...');
-    const bulletpoints = await generateBulletpoints(script);
-    console.log(`✅ Generated ${bulletpoints.length} bulletpoints\n`);
-    await logInfo(`Generated ${bulletpoints.length} bulletpoints from podcast content`);
-
-    // Step 8: Prepare email content
-    console.log('📧 Step 7: Preparing email content...');
-    const htmlContent = generateEmailContent(allArticles, script.length, actualDuration, bulletpoints);
-
-    // Step 9: Determine recipients
+    // Step 8: Determine recipients
     const emailRecipients = recipients || getEmailRecipients();
     console.log(`📧 Sending to ${emailRecipients.length} recipient(s): ${emailRecipients.join(', ')}`);
 
-    // Step 10: Send email
-    console.log('📤 Step 9: Sending email...');
+    // Step 9: Send email
+    console.log('📤 Step 7: Sending email...');
     const transporter = createTransporter();
 
     // Verify connection configuration

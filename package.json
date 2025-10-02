@@ -26,6 +26,7 @@
   "description": "Daily AI News - A TypeScript project for sending AI news updates via email",
   "dependencies": {
     "@deepgram/sdk": "^4.11.2",
+    "dayjs": "^1.11.18",
     "discord.js": "^14.22.1",
     "dotenv": "^17.2.2",
     "node-cron": "^3.0.3",

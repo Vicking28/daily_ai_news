@@ -1,17 +1,26 @@
 import { OpenAI } from 'openai';
-import { Article } from './rssFetcher';
+import { Article } from './types';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
 import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
 
+// Configure dayjs plugins
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
 /**
- * Generates a podcast-style script from a collection of articles
- * @param articles - Array of articles to summarize
+ * Generates a podcast script from pre-selected articles (Pass B)
+ * @param selectedArticles - Array of articles that were already selected in Pass A
+ * @param localDateISO - Optional date string in ISO format (defaults to current date in Budapest timezone)
  * @returns Promise<string> - Generated podcast script
  */
-export async function generatePodcastScript(
-  articles: Article[]
+export async function generatePodcastScriptFromSelected(
+  selectedArticles: Article[],
+  localDateISO?: string
 ): Promise<string> {
   // Validate OpenAI configuration
   if (!process.env.OPENAI_API_KEY) {
@@ -21,8 +30,8 @@ export async function generatePodcastScript(
     );
   }
 
-  if (articles.length === 0) {
-    throw new Error('No articles provided for podcast generation');
+  if (selectedArticles.length === 0) {
+    throw new Error('No selected articles provided for podcast generation');
   }
 
   // Initialize OpenAI client
@@ -30,40 +39,45 @@ export async function generatePodcastScript(
     apiKey: process.env.OPENAI_API_KEY,
   });
 
-  console.log(`🎙️ Generating podcast script from ${articles.length} articles...`);
+  console.log(`🎙️ Generating podcast script from ${selectedArticles.length} selected articles...`);
 
-  // Prepare the articles data for the prompt
-  const articlesText = articles
+  // Format today's date in Europe/Budapest timezone, month & day only (no year)
+  const formattedDateNoYear = localDateISO 
+    ? dayjs(localDateISO).tz('Europe/Budapest').format('MMMM D')
+    : dayjs().tz('Europe/Budapest').format('MMMM D');
+
+  // Prepare the articles data for the prompt (compact context)
+  const articlesText = selectedArticles
     .map((article, index) => {
+      const pubDate = article.pubDate ? new Date(article.pubDate) : new Date();
+      const month = pubDate.toLocaleDateString('en-US', { month: 'long' });
+      const day = pubDate.getDate();
+      
       return `${index + 1}. [${article.source}] ${article.title}
-   Summary: ${article.summary}
-   Link: ${article.link}
-   Published: ${new Date(article.pubDate).toLocaleDateString()}`;
+   ${article.summary.substring(0, 200)}...`;
     })
     .join('\n\n');
 
-  const prompt = `You are a professional AI news podcast host. Create an engaging, conversational podcast script based on the following AI and technology news articles.
+  const prompt = `You are a podcast scriptwriter. Produce a clear, engaging spoken script for the "49x AI Podcast".
+
+- The script is meant to be read aloud exactly as written.
+- Do NOT include any music cues, stage directions, host name placeholders, or formatting (no bold, no headers).
+- Target length: 800–1000 words (≈5–7 minutes spoken).
+- Select the most important updates from the data and use only AI or AI related news in the podcast. Anything that is not AI related is not relevant and should not be used for the podcast.
+- Smooth transitions between sections.
+- Factual, concise, natural tone. Conversational but professional.
+- Avoid any fancy wording, robotic style, or overly professional tone. This should be easy to understand and good to listen for the audience.
+- Mention sources conversationally ("according to the New York Times…") — no raw URLs.
+- The very first sentence must always be:
+  "Welcome to the 49 X AI Podcast, your daily briefing on artificial intelligence, today is ${formattedDateNoYear}."
+- The very last lines must always:
+   1) Wrap up with "This was the 49x AI Podcast for ${formattedDateNoYear}. Thanks for listening."
+   2) Include a few sentences summarizing the most important news of the day, like a closing highlight reel.
+- Do not duplicate news items. If multiple items cover the same event, merge them.
+- Mention dates only as month and day (no years).
 
 ARTICLES TO SUMMARIZE:
 ${articlesText}
-
-REQUIREMENTS:
-- Create a 5-8 minute podcast script (approximately 700-900 words)
-- Use a conversational, engaging tone as if speaking to listeners
-- Start with a brief introduction about today's AI news
-- Summarize the most important and interesting stories
-- Group related stories together when possible
-- Include transitions between topics
-- End with a brief conclusion
-- Focus on the most significant developments and their implications
-- Make it accessible to both technical and non-technical audiences
-- Use natural speech patterns and avoid overly formal language
-
-FORMAT:
-- Write as a continuous script without section headers
-- Use natural transitions like "Speaking of...", "In other news...", "Meanwhile..."
-- Include brief pauses indicated by "..." where appropriate
-- Keep sentences conversational and easy to follow when spoken aloud
 
 Generate the podcast script now:`;
 

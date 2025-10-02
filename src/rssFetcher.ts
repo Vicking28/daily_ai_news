@@ -1,5 +1,7 @@
 import Parser from 'rss-parser';
 import striptags from 'striptags';
+import crypto from 'crypto';
+import { Article } from './types';
 
 // RSS Parser instance
 const parser = new Parser();
@@ -20,13 +22,22 @@ const RSS_FEEDS = [
   'https://dailyai.com/feed',
 ];
 
-// Normalized article interface
-export interface Article {
-  source: string;
-  title: string;
-  link: string;
-  pubDate: string;
-  summary: string;
+/**
+ * Generates a stable deterministic ID for an article
+ * @param link - Article link
+ * @param title - Article title
+ * @param source - Article source
+ * @returns 16-character hex ID
+ */
+function generateArticleId(link: string, title: string, source: string): string {
+  // Prefer hashing the link if available
+  if (link && link.trim()) {
+    return crypto.createHash('sha1').update(link).digest('hex').slice(0, 16);
+  }
+  
+  // Fallback to hashing title + source
+  const fallback = `${title}${source}`;
+  return crypto.createHash('sha1').update(fallback).digest('hex').slice(0, 16);
 }
 
 /**
@@ -99,15 +110,22 @@ async function fetchFeed(feedUrl: string): Promise<Article[]> {
     const feed = await parser.parseURL(feedUrl);
     const sourceName = extractSourceName(feedUrl);
 
-    const articles: Article[] = feed.items.map((item) => ({
-      source: sourceName,
-      title: item.title || 'Untitled',
-      link: item.link || '',
-      pubDate: item.pubDate || item.isoDate || new Date().toISOString(),
-      summary: cleanHtmlContent(
-        item.contentSnippet || item.content || item.description || ''
-      ),
-    }));
+    const articles: Article[] = feed.items.map((item) => {
+      const title = item.title || 'Untitled';
+      const link = item.link || '';
+      const source = sourceName;
+      
+      return {
+        id: generateArticleId(link, title, source),
+        source,
+        title,
+        link,
+        pubDate: item.pubDate || item.isoDate || new Date().toISOString(),
+        summary: cleanHtmlContent(
+          item.contentSnippet || item.content || item.description || ''
+        ),
+      };
+    });
 
     console.log(`✅ Fetched ${articles.length} articles from ${sourceName}`);
     return articles;
@@ -135,7 +153,7 @@ export async function fetchAllFeeds(): Promise<Article[]> {
 
     // Sort by publication date (newest first)
     allArticles.sort(
-      (a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
+      (a, b) => new Date(b.pubDate || 0).getTime() - new Date(a.pubDate || 0).getTime()
     );
 
     console.log(
