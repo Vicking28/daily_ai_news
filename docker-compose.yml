@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  daily_ai_news:
+    build: .
+    container_name: daily_ai_news
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      # Mount output directory to persist generated files
+      - ./output:/app/output
+    # Optional: Add health check
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "node"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Optional: Add logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

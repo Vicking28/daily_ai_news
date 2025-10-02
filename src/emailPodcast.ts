@@ -5,7 +5,8 @@ import dotenv from 'dotenv';
 import { fetchAllFeeds } from './rssFetcher';
 import { generatePodcastScript } from './podcastGenerator';
 import { synthesizePodcast, getMP3Duration, formatDuration } from './tts';
-import { uploadPodcastText } from './driveUploader';
+import { OpenAI } from 'openai';
+import { logProcessStart, logSuccess, logError, logInfo, logNewsCollection, logPodcastGeneration, logAudioSynthesis, logEmailSent } from './logger';
 
 // Load environment variables
 dotenv.config();
@@ -13,7 +14,7 @@ dotenv.config();
 /**
  * Creates and returns a configured nodemailer transporter
  */
-function createTransporter(): Transporter {
+export function createTransporter(): Transporter {
   // Validate required environment variables
   const requiredVars = ['EMAIL_USER', 'EMAIL_PASS'];
   const missingVars = requiredVars.filter(varName => !process.env[varName]);
@@ -52,7 +53,7 @@ function ensureOutputDirectory(): string {
  * Gets email recipients from environment variables
  * Supports both single email and comma-separated list
  */
-function getEmailRecipients(): string[] {
+export function getEmailRecipients(): string[] {
   // Check for EMAIL_RECIPIENTS first (comma-separated list)
   if (process.env.EMAIL_RECIPIENTS) {
     const recipients = process.env.EMAIL_RECIPIENTS
@@ -75,16 +76,87 @@ function getEmailRecipients(): string[] {
 }
 
 /**
- * Saves the podcast script as a text file
+ * Saves the podcast script as a text file with timestamp
  * @param script - The podcast script text
  * @param outputDir - The output directory path
  * @returns Path to the saved text file
  */
 function savePodcastScript(script: string, outputDir: string): string {
-  const scriptPath = path.join(outputDir, 'podcast.txt');
+  const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const scriptPath = path.join(outputDir, `podcast_${timestamp}.txt`);
   fs.writeFileSync(scriptPath, script, 'utf8');
   console.log(`📝 Saved podcast script to: ${scriptPath}`);
   return scriptPath;
+}
+
+/**
+ * Generates bulletpoints from podcast script using AI
+ * @param script - The podcast script text
+ * @returns Array of bulletpoint strings
+ */
+async function generateBulletpoints(script: string): Promise<string[]> {
+  // Validate OpenAI configuration
+  if (!process.env.OPENAI_API_KEY) {
+    console.log('⚠️ OpenAI API key not available, using fallback bulletpoints');
+    return ['AI news summary generated from podcast content'];
+  }
+
+  try {
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+
+    const prompt = `Extract 5-7 concise bulletpoints from this podcast script that summarize the key AI and technology news stories. Each bulletpoint should be 1-2 sentences and capture the most important developments.
+
+PODCAST SCRIPT:
+${script}
+
+REQUIREMENTS:
+- Extract 5-7 bulletpoints maximum
+- Each bulletpoint should be 1-2 sentences
+- Focus on the most significant AI/tech developments
+- Make them engaging and informative
+- Use present tense and active voice
+- Avoid redundant information
+
+Return only the bulletpoints, one per line, without numbering or bullet symbols.`;
+
+    const completion = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert at extracting key information from AI and technology content. You create concise, engaging bulletpoints that capture the most important developments.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      max_tokens: 500,
+      temperature: 0.3,
+    });
+
+    const response = completion.choices[0]?.message?.content;
+    if (!response) {
+      throw new Error('No response from OpenAI');
+    }
+
+    // Parse the response into individual bulletpoints
+    const bulletpoints = response
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .slice(0, 7); // Limit to 7 bulletpoints max
+
+    console.log(`✅ Generated ${bulletpoints.length} bulletpoints from podcast content`);
+    return bulletpoints;
+
+  } catch (error) {
+    console.error('❌ Failed to generate bulletpoints:', error);
+    // Fallback to generic bulletpoints
+    return ['AI news summary generated from podcast content'];
+  }
 }
 
 /**
@@ -92,15 +164,12 @@ function savePodcastScript(script: string, outputDir: string): string {
  * @param articles - Array of articles
  * @param scriptLength - Length of the generated script
  * @param actualDuration - Actual duration of the MP3 file in seconds
- * @param driveUrl - Optional Google Drive URL for the podcast text
+ * @param bulletpoints - Array of bulletpoints from podcast content
  * @returns HTML email content
  */
-function generateEmailContent(articles: any[], scriptLength: number, actualDuration: number, driveUrl?: string): string {
-  // Get top 5 articles for the email
-  const topArticles = articles.slice(0, 5);
-  
-  const articleList = topArticles
-    .map(article => `<li><a href="${article.link}" target="_blank">${article.title}</a> <small>(${article.source})</small></li>`)
+export function generateEmailContent(articles: any[], scriptLength: number, actualDuration: number, bulletpoints: string[]): string {
+  const bulletpointList = bulletpoints
+    .map(bulletpoint => `<li style="margin-bottom: 8px;">${bulletpoint}</li>`)
     .join('\n');
 
   return `
@@ -113,26 +182,21 @@ function generateEmailContent(articles: any[], scriptLength: number, actualDurat
         Good morning! Here's your daily dose of AI and technology news, curated and transformed into an engaging podcast format.
       </p>
       
-      <h3 style="color: #333; margin-top: 30px;">📰 Today's Top Stories:</h3>
-      <ul style="font-size: 14px; line-height: 1.8; color: #555;">
-        ${articleList}
+      <h3 style="color: #333; margin-top: 30px;">📰 Today's Top News:</h3>
+      <ul style="font-size: 14px; line-height: 1.8; color: #555; list-style-type: disc; padding-left: 20px;">
+        ${bulletpointList}
       </ul>
       
       <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 30px 0;">
         <h3 style="color: #333; margin-top: 0;">🎧 Your Podcast is Ready!</h3>
         <p style="margin-bottom: 10px; color: #555;">
           <strong>📝 Script Length:</strong> ${scriptLength} characters<br>
-          <strong>⏱️ Actual Duration:</strong> ${formatDuration(actualDuration)}
+          <strong>⏱️ Listen Duration:</strong> ${formatDuration(actualDuration)}
         </p>
-        <p style="color: #555; margin-bottom: 10px;">
+        <p style="color: #555; margin-bottom: 0;">
           Attached you'll find both the full podcast script (podcast.txt) and the audio file (podcast.mp3) 
           generated using AI-powered text-to-speech technology.
         </p>
-        ${driveUrl ? `
-        <p style="color: #555; margin-bottom: 0;">
-          You can also <a href="${driveUrl}" target="_blank" style="color: #007acc; text-decoration: none;">read the podcast text on Google Drive</a> for easy access and sharing.
-        </p>
-        ` : ''}
       </div>
       
       <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px; text-align: center; color: #888; font-size: 12px;">
@@ -154,67 +218,76 @@ function generateEmailContent(articles: any[], scriptLength: number, actualDurat
  */
 export async function sendDailyPodcastEmail(recipients?: string[]): Promise<void> {
   console.log('📧 Starting daily AI podcast email generation...\n');
+  await logProcessStart('Daily AI podcast email generation');
+
+  // Generate timestamp for all files
+  const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
   try {
     // Step 1: Fetch RSS feeds
     console.log('📡 Step 1: Fetching RSS feeds...');
     const allArticles = await fetchAllFeeds();
     console.log(`✅ Fetched ${allArticles.length} articles from RSS feeds\n`);
+    await logNewsCollection(allArticles.length, 12); // Assuming 12 RSS sources
 
     // Step 2: Generate podcast script
     console.log('🤖 Step 2: Generating podcast script with AI...');
-    const script = await generatePodcastScript(allArticles.slice(0, 20)); // Limit for cost control
+    const script = await generatePodcastScript(allArticles); // Use all articles
     console.log(`✅ Generated script: ${script.length} characters\n`);
+    const wordCount = script.split(' ').length;
+    await logPodcastGeneration(script.length, wordCount);
 
     // Step 3: Ensure output directory exists
     const outputDir = ensureOutputDirectory();
 
     // Step 4: Generate audio file
     console.log('🎤 Step 3: Converting script to speech...');
-    const audioPath = path.join(outputDir, 'podcast.mp3');
+    const audioPath = path.join(outputDir, `podcast_${timestamp}.mp3`);
     await synthesizePodcast(script, audioPath);
     console.log(`✅ Generated audio file: ${audioPath}\n`);
 
     // Step 4.5: Get actual MP3 duration
     console.log('⏱️ Getting actual MP3 duration...');
     let actualDuration: number;
+    let fileSize: string;
     try {
       actualDuration = await getMP3Duration(audioPath);
-      console.log(`✅ Actual duration: ${formatDuration(actualDuration)}\n`);
+      const stats = fs.statSync(audioPath);
+      fileSize = `${(stats.size / 1024).toFixed(0)} KB`;
+      console.log(`✅ Actual duration: ${formatDuration(actualDuration)}, File size: ${fileSize}\n`);
     } catch (error) {
       console.log('⚠️ Could not get actual duration, using estimation...');
       // Fallback to estimation
       actualDuration = Math.round(script.length / 2.5);
+      fileSize = 'Unknown';
       console.log(`📊 Estimated duration: ${formatDuration(actualDuration)}\n`);
     }
 
+    await logAudioSynthesis(formatDuration(actualDuration), fileSize);
+
     // Step 5: Save script as text file
     console.log('📝 Step 4: Saving podcast script...');
-    const scriptPath = savePodcastScript(script, outputDir);
+    const scriptPath = path.join(outputDir, `podcast_${timestamp}.txt`);
+    fs.writeFileSync(scriptPath, script, 'utf8');
     console.log(`✅ Saved script file: ${scriptPath}\n`);
 
-    // Step 6: Upload to Google Drive (optional)
-    let driveUrl: string | undefined;
-    try {
-      console.log('☁️ Step 5: Uploading to Google Drive...');
-      driveUrl = await uploadPodcastText(scriptPath);
-      console.log(`✅ Google Drive upload successful: ${driveUrl}\n`);
-    } catch (error) {
-      console.log('⚠️ Google Drive upload failed, continuing without Drive link...');
-      console.log('   Error:', error instanceof Error ? error.message : 'Unknown error');
-      console.log('   Email will be sent with attachments only.\n');
-    }
 
-    // Step 7: Prepare email content
-    console.log('📧 Step 6: Preparing email content...');
-    const htmlContent = generateEmailContent(allArticles, script.length, actualDuration, driveUrl);
+    // Step 7: Generate bulletpoints from podcast content
+    console.log('📝 Step 6: Generating bulletpoints from podcast content...');
+    const bulletpoints = await generateBulletpoints(script);
+    console.log(`✅ Generated ${bulletpoints.length} bulletpoints\n`);
+    await logInfo(`Generated ${bulletpoints.length} bulletpoints from podcast content`);
 
-    // Step 8: Determine recipients
+    // Step 8: Prepare email content
+    console.log('📧 Step 7: Preparing email content...');
+    const htmlContent = generateEmailContent(allArticles, script.length, actualDuration, bulletpoints);
+
+    // Step 9: Determine recipients
     const emailRecipients = recipients || getEmailRecipients();
     console.log(`📧 Sending to ${emailRecipients.length} recipient(s): ${emailRecipients.join(', ')}`);
 
-    // Step 9: Send email
-    console.log('📤 Step 8: Sending email...');
+    // Step 10: Send email
+    console.log('📤 Step 9: Sending email...');
     const transporter = createTransporter();
 
     // Verify connection configuration
@@ -230,12 +303,12 @@ export async function sendDailyPodcastEmail(recipients?: string[]): Promise<void
       html: htmlContent,
       attachments: [
         {
-          filename: 'podcast.txt',
+          filename: `podcast_${timestamp}.txt`,
           path: scriptPath,
           contentType: 'text/plain',
         },
         {
-          filename: 'podcast.mp3',
+          filename: `podcast_${timestamp}.mp3`,
           path: audioPath,
           contentType: 'audio/mpeg',
         },
@@ -245,6 +318,7 @@ export async function sendDailyPodcastEmail(recipients?: string[]): Promise<void
     console.log('✅ Daily AI podcast email sent successfully!');
     console.log('📧 Message ID:', info.messageId);
     console.log('📬 Preview URL:', nodemailer.getTestMessageUrl(info));
+    await logEmailSent(emailRecipients.length, info.messageId || 'Unknown');
 
     // Clean up temporary files (optional - you might want to keep them)
     // fs.unlinkSync(scriptPath);
@@ -252,6 +326,10 @@ export async function sendDailyPodcastEmail(recipients?: string[]): Promise<void
 
   } catch (error) {
     console.error('❌ Failed to send daily podcast email:', error);
+    
+    // Log error to Discord with user mention
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await logError(`Failed to send daily podcast email: ${errorMessage}`);
     
     if (error instanceof Error) {
       if (error.message.includes('EMAIL_USER') || error.message.includes('EMAIL_PASS')) {

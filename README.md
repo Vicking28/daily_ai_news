@@ -9,6 +9,9 @@ A TypeScript project for gathering AI news from multiple RSS feeds, generating A
 - **AI Podcast Generation** - Transform articles into engaging podcast scripts using OpenAI GPT-4o-mini
 - **Text-to-Speech** - Convert podcast scripts to natural-sounding MP3 audio using Deepgram TTS
 - **Daily Email Automation** - Send complete podcast emails with script and audio attachments
+- **Automated Scheduling** - Daily cron job runs at 6:30 AM GMT+2 (Hungary timezone)
+- **Smart Content Summarization** - AI-generated bulletpoints from podcast content
+- **Timestamped Files** - All generated files include date stamps for easy organization
 - **Email Functionality** - Send emails using nodemailer with SMTP configuration
 - **HTML Content Cleaning** - Strip HTML tags and decode entities for clean text
 - **Environment Configuration** - Secure credential management with dotenv
@@ -21,15 +24,14 @@ A TypeScript project for gathering AI news from multiple RSS feeds, generating A
 daily_ai_news/
 ├── src/                    # Source TypeScript files
 │   ├── emailPodcast.ts    # Main daily podcast email automation
+│   ├── dailyRunner.ts     # Daily scheduler with cron job
 │   ├── rssFetcher.ts      # RSS feed aggregation
 │   ├── podcastGenerator.ts # AI-powered podcast script generation
 │   ├── tts.ts             # Text-to-speech conversion
-│   ├── driveUploader.ts   # Google Drive integration
-│   ├── getRefreshToken.ts # Google OAuth2 refresh token helper
 │   └── testEmailPodcast.ts # Main application entry point
 ├── output/                # Generated files (ignored by git)
-│   ├── podcast.mp3        # Generated podcast audio
-│   └── podcast.txt        # Generated podcast script
+│   ├── podcast_YYYY-MM-DD.mp3 # Generated podcast audio with timestamp
+│   └── podcast_YYYY-MM-DD.txt # Generated podcast script with timestamp
 ├── dist/                  # Compiled JavaScript output
 ├── .env.example          # Environment variables template
 ├── .gitignore            # Git ignore rules
@@ -108,9 +110,9 @@ npm install
 ### 5. Email Provider Setup
 
 #### Gmail Setup
-1. Enable 2-Factor Authentication on your Google account
+1. Enable 2-Factor Authentication on your Gmail account
 2. Generate an App Password:
-   - Go to Google Account settings
+   - Go to Gmail Account settings
    - Security → 2-Step Verification → App passwords
    - Generate a password for "Mail"
    - Use this password in your `.env` file
@@ -120,61 +122,68 @@ npm install
 - **Yahoo**: `smtp.mail.yahoo.com:587`
 - **Custom SMTP**: Use your provider's SMTP settings
 
-### 6. Google Drive API Setup (Optional)
+### 6. Discord Bot Setup (Required for Enhanced Logging)
 
-The project can automatically upload podcast text files to Google Drive for easy sharing. This is optional - emails will work without it.
+The project includes a Discord bot integration for rich logging, monitoring, and interactive slash commands.
 
-#### Create Google Cloud Project
-1. Visit [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing one
-3. Enable the Google Drive API:
-   - Go to "APIs & Services" → "Library"
-   - Search for "Google Drive API"
-   - Click "Enable"
-
-#### Create OAuth2 Credentials
-1. Go to "APIs & Services" → "Credentials"
-2. Click "Create Credentials" → "OAuth 2.0 Client IDs"
-3. Choose "Desktop application" as application type
-4. Download the JSON file and note your:
-   - `client_id`
-   - `client_secret`
-
-#### Get Refresh Token
-
-**Option 1: Using the Built-in Helper (Recommended)**
-1. Add your `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to your `.env` file
-2. Run the built-in helper:
-   ```bash
-   npm run get-refresh-token
+#### Setup Discord Bot
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+2. Create a new application and bot
+3. Copy the bot token
+4. Invite the bot to your server with necessary permissions
+5. Get the channel ID where you want logs (right-click channel → Copy ID)
+6. Get your Discord user ID (right-click your username → Copy ID)
+7. Add to your `.env` file:
+   ```env
+   DISCORD_BOT_TOKEN=your-discord-bot-token-here
+   DISCORD_LOG_CHANNEL_ID=your-discord-channel-id-here
+   DISCORD_USER_ID=your-discord-user-id-here
    ```
-3. Follow the interactive prompts to get your refresh token
-4. Copy the generated refresh token to your `.env` file
 
-**Option 2: Manual OAuth2 Playground**
-1. Visit [Google OAuth2 Playground](https://developers.google.com/oauthplayground/)
-2. Click the gear icon (⚙️) → "Use your own OAuth credentials"
-3. Enter your `client_id` and `client_secret`
-4. In the left panel, find "Drive API v3" → "https://www.googleapis.com/auth/drive.file"
-5. Click "Authorize APIs" and sign in with your Google account
-6. Click "Exchange authorization code for tokens"
-7. Copy the `refresh_token` from the response
+#### Discord Rich Logging Features
+- **Rich Embeds**: Beautiful, structured messages with colors and emojis
+- **Process Monitoring**: Real-time updates on all pipeline steps
+- **Dynamic Colors**: Green for success, red for errors, blue for info
+- **Interactive Commands**: Slash commands for manual control
+- **User Mentions**: Error alerts with `@<DiscordUserID>` notifications
 
-#### Add to Environment
-Add these values to your `.env` file:
-```env
-GOOGLE_CLIENT_ID=your-client-id-here
-GOOGLE_CLIENT_SECRET=your-client-secret-here
-GOOGLE_REDIRECT_URI=http://localhost:3000/oauth2callback
-GOOGLE_REFRESH_TOKEN=your-refresh-token-here
-```
+#### Available Slash Commands
+- `/send-podcast <recipients>` - Send daily podcast manually to specified recipients
+- `/status` - Check service health and status
+- `/test-podcast <recipient>` - Send test podcast with limited articles
+
+### 7. Daily Scheduler Setup
+
+The project includes an automated daily scheduler that runs the full podcast pipeline every day at 6:30 AM GMT+2 (Hungary timezone).
 
 #### Features
-- **Automatic Upload**: Podcast text files uploaded to Google Drive
-- **Public Sharing**: Files set to "anyone with link can view"
-- **Unique Naming**: Files named with date (e.g., `daily-ai-podcast-2024-01-15.txt`)
-- **Email Integration**: Drive links included in email content
-- **Graceful Fallback**: System works without Drive if upload fails
+- **Automatic Execution**: Runs daily without manual intervention
+- **Timezone Support**: Configured for Hungary timezone (GMT+2)
+- **Error Handling**: Comprehensive error logging and graceful failure handling
+- **Discord Bot Integration**: Rich embeds and interactive slash commands
+- **Test Mode**: Run immediately for testing with `--test` flag
+- **Limited Test Mode**: Fast testing with reduced articles and API usage
+
+#### Usage
+```bash
+# Start the daily scheduler (production)
+npm run start:daily
+
+# Test run (generates podcast immediately with all articles)
+npm run start:daily -- --test
+
+# Test mode (limited articles for faster testing)
+npm run start:test
+
+# Manual podcast email
+npm run send:podcast
+```
+
+#### Scheduler Details
+- **Schedule**: Every day at 6:30 AM GMT+2 (4:30 AM UTC)
+- **Cron Expression**: `30 4 * * *`
+- **Timezone**: Europe/Budapest
+- **Process**: Keeps running until manually stopped (Ctrl+C)
 
 ### 7. Email Recipients Configuration
 
@@ -220,14 +229,66 @@ Execute the compiled JavaScript:
 npm start
 ```
 
-### Get Google Refresh Token
-Get a Google OAuth2 refresh token for Drive integration:
+### Start Daily Scheduler
+Run the automated daily scheduler (recommended for production):
 
 ```bash
-npm run get-refresh-token
+# Start daily scheduler (runs at 6:30 AM GMT+2)
+npm run start:daily
+
+# Test run (generates podcast immediately)
+npm run start:daily -- --test
 ```
 
-### Send Daily Podcast Email
+### Docker Deployment (Recommended for Production)
+
+For production deployment, use Docker to ensure consistent execution and easy management.
+
+#### Prerequisites
+1. Install Docker and Docker Compose
+2. Add Discord bot configuration to your `.env` file (required for full functionality)
+
+#### Quick Start with Docker
+```bash
+# Build the Docker image
+docker-compose build
+
+# Start the service in the background
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop the service
+docker-compose down
+```
+
+#### Docker Features
+- **Automatic Restart**: Service restarts automatically if it crashes
+- **Persistent Storage**: Generated files are saved to `./output` directory
+- **Health Checks**: Built-in health monitoring
+- **Log Management**: Automatic log rotation and management
+- **Environment Isolation**: Secure credential management
+
+#### Docker Commands
+```bash
+# Build and start
+docker-compose up -d --build
+
+# View real-time logs
+docker-compose logs -f daily_ai_news
+
+# Restart service
+docker-compose restart
+
+# Stop and remove containers
+docker-compose down
+
+# Update and restart
+docker-compose pull && docker-compose up -d
+```
+
+### Send Daily Podcast Email (Manual)
 Send a complete daily podcast email with RSS → AI Script → Audio → Email:
 
 ```bash
@@ -336,7 +397,7 @@ import { generatePodcastScript, estimateReadingTime } from './src/podcastGenerat
 
 // Fetch articles and generate podcast script
 const articles = await fetchAllFeeds();
-const script = await generatePodcastScript(articles.slice(0, 20)); // Limit for cost
+const script = await generatePodcastScript(articles); // Use all articles
 
 // Analyze the generated script
 const stats = estimateReadingTime(script);
@@ -352,7 +413,7 @@ The generated script includes:
 - **Conclusion** - Summary and forward-looking insights
 
 ### Cost Management
-- **Article Limiting** - Test with 20 articles to control costs
+- **Unlimited Articles** - Uses all fetched articles for comprehensive coverage
 - **Model Selection** - Uses cost-effective `gpt-4o-mini`
 - **Token Optimization** - Efficient prompts minimize API usage
 - **Error Handling** - Graceful failure with helpful error messages
@@ -396,7 +457,7 @@ import { synthesizePodcast } from './src/tts';
 
 // Complete pipeline: RSS → AI Script → Audio
 const articles = await fetchAllFeeds();
-const script = await generatePodcastScript(articles.slice(0, 20));
+const script = await generatePodcastScript(articles);
 await synthesizePodcast(script, 'output/daily-ai-news.mp3');
 ```
 
@@ -427,12 +488,12 @@ The project includes comprehensive email automation for daily AI podcast deliver
 - **Subject**: "Daily AI News Podcast"
 - **HTML Body**: 
   - Introduction paragraph
-  - Top 5 article titles with clickable links
-  - Podcast statistics (script length, estimated duration)
+  - AI-generated bulletpoints from podcast content (5-7 key points)
+  - Podcast statistics (script length, listen duration)
   - Professional styling with branding
 - **Attachments**:
-  - `podcast.txt` - Full AI-generated script
-  - `podcast.mp3` - High-quality audio file
+  - `podcast_YYYY-MM-DD.txt` - Full AI-generated script with timestamp
+  - `podcast_YYYY-MM-DD.mp3` - High-quality audio file with timestamp
 
 ### Example Usage
 
@@ -444,11 +505,12 @@ await sendDailyPodcastEmail();
 ```
 
 ### Email Process
-1. **Fetch RSS Feeds** - Gets latest articles from 13+ sources
-2. **Generate AI Script** - Creates engaging podcast content
+1. **Fetch RSS Feeds** - Gets latest articles from 13+ sources (no article limit)
+2. **Generate AI Script** - Creates engaging podcast content from all articles
 3. **Convert to Speech** - Generates MP3 audio with TTS
-4. **Create Attachments** - Saves script and audio files
-5. **Send Email** - Delivers complete package with rich HTML content
+4. **Generate Bulletpoints** - AI extracts key points from podcast content
+5. **Create Attachments** - Saves timestamped script and audio files
+6. **Send Email** - Delivers complete package with rich HTML content
 
 ## 📧 Basic Email Functionality
 
@@ -489,10 +551,9 @@ if (success) {
 | `OPENAI_API_KEY` | ✅ | - | OpenAI API key for podcast generation |
 | `OPENAI_MODEL` | ❌ | `gpt-4o-mini` | OpenAI model to use |
 | `DEEPGRAM_API_KEY` | ✅ | - | Deepgram API key for text-to-speech |
-| `GOOGLE_CLIENT_ID` | ❌ | - | Google OAuth2 client ID (for Drive uploads) |
-| `GOOGLE_CLIENT_SECRET` | ❌ | - | Google OAuth2 client secret (for Drive uploads) |
-| `GOOGLE_REDIRECT_URI` | ❌ | `http://localhost:3000/oauth2callback` | OAuth2 redirect URI |
-| `GOOGLE_REFRESH_TOKEN` | ❌ | - | Google OAuth2 refresh token (for Drive uploads) |
+| `DISCORD_BOT_TOKEN` | ❌ | - | Discord bot token for logging and slash commands |
+| `DISCORD_LOG_CHANNEL_ID` | ❌ | - | Discord channel ID for logging |
+| `DISCORD_USER_ID` | ❌ | - | Discord user ID for error mentions |
 
 ### TypeScript Configuration
 
