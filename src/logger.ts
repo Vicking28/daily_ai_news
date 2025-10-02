@@ -57,6 +57,40 @@ async function initializeDiscord(): Promise<void> {
 }
 
 /**
+ * Get email recipients from environment variables for slash command choices
+ */
+function getEmailRecipientsForChoices(): { name: string; value: string }[] {
+  const choices: { name: string; value: string }[] = [];
+  
+  // Check for EMAIL_RECIPIENTS first (comma-separated list)
+  if (process.env.EMAIL_RECIPIENTS) {
+    const recipients = process.env.EMAIL_RECIPIENTS
+      .split(',')
+      .map(email => email.trim())
+      .filter(email => email.length > 0);
+    
+    recipients.forEach(email => {
+      choices.push({ name: email, value: email });
+    });
+  }
+  
+  // Add EMAIL_TO if it exists and not already in the list
+  if (process.env.EMAIL_TO) {
+    const emailTo = process.env.EMAIL_TO.trim();
+    if (!choices.find(choice => choice.value === emailTo)) {
+      choices.push({ name: emailTo, value: emailTo });
+    }
+  }
+  
+  // Default fallback if no emails configured
+  if (choices.length === 0) {
+    choices.push({ name: 'zlatnikvince@gmail.com', value: 'zlatnikvince@gmail.com' });
+  }
+  
+  return choices;
+}
+
+/**
  * Register slash commands with Discord
  */
 async function registerSlashCommands(): Promise<void> {
@@ -64,16 +98,25 @@ async function registerSlashCommands(): Promise<void> {
     return;
   }
 
+  const emailChoices = getEmailRecipientsForChoices();
+
   const commands = [
     new SlashCommandBuilder()
       .setName('send-podcast')
       .setDescription('Send daily podcast email manually')
-      .addStringOption(option =>
-        option
+      .addStringOption(option => {
+        const stringOption = option
           .setName('recipients')
-          .setDescription('Comma-separated list of email recipients')
-          .setRequired(true)
-      ),
+          .setDescription('Email recipients for the podcast')
+          .setRequired(true);
+        
+        // Add choices for each email recipient
+        emailChoices.forEach(choice => {
+          stringOption.addChoices(choice);
+        });
+        
+        return stringOption;
+      }),
 
     new SlashCommandBuilder()
       .setName('status')
@@ -82,12 +125,19 @@ async function registerSlashCommands(): Promise<void> {
     new SlashCommandBuilder()
       .setName('test-podcast')
       .setDescription('Send a test podcast with limited articles')
-      .addStringOption(option =>
-        option
+      .addStringOption(option => {
+        const stringOption = option
           .setName('recipient')
-          .setDescription('Single email recipient for test')
-          .setRequired(true)
-      ),
+          .setDescription('Email recipient for the test podcast')
+          .setRequired(true);
+        
+        // Add choices for each email recipient
+        emailChoices.forEach(choice => {
+          stringOption.addChoices(choice);
+        });
+        
+        return stringOption;
+      }),
   ];
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
@@ -262,8 +312,7 @@ export async function logPodcastGeneration(scriptLength: number, wordCount: numb
     .setTitle(':headphones: Podcast Generated')
     .setDescription(`Generated podcast script with ${wordCount} words`)
     .addFields(
-      { name: 'Script Length', value: `${scriptLength} characters`, inline: true },
-      { name: 'Estimated Duration', value: `${Math.round(scriptLength / 2.5 / 60)} minutes`, inline: true }
+      { name: 'Script Length', value: `${scriptLength} characters`, inline: true }
     )
     .setTimestamp();
 
@@ -343,15 +392,15 @@ export function setupSlashCommandHandlers(): void {
 async function handleSendPodcastCommand(interaction: any): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
 
-  const recipients = interaction.options.getString('recipients');
-  const recipientList = recipients.split(',').map((email: string) => email.trim());
+  const recipient = interaction.options.getString('recipients');
+  const recipientList = [recipient]; // Convert single recipient to array
 
   try {
     const { sendDailyPodcastEmail } = await import('./emailPodcast');
     await sendDailyPodcastEmail(recipientList);
     
     await interaction.editReply({
-      content: `✅ Daily podcast email sent successfully to ${recipientList.length} recipient(s)`
+      content: `✅ Daily podcast email sent successfully to ${recipient}`
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
