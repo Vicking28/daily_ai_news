@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, EmbedBuilder, ChannelType, SlashCommandBuilder, REST, Routes } from 'discord.js';
+import { Client, GatewayIntentBits, EmbedBuilder, ChannelType, SlashCommandBuilder, REST, Routes, InteractionResponseFlags } from 'discord.js';
 import dotenv from 'dotenv';
 
 // Load environment variables
@@ -378,18 +378,27 @@ export function setupSlashCommandHandlers(): void {
           break;
         default:
           if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({ content: 'Unknown command', ephemeral: true });
+            await interaction.reply({ 
+              content: 'Unknown command', 
+              flags: InteractionResponseFlags.Ephemeral 
+            });
           }
       }
     } catch (error) {
       console.error('❌ Error handling slash command:', error);
+      
+      // Check if this is a "Unknown interaction" error - if so, just ignore it
+      if (error instanceof Error && error.message.includes('Unknown interaction')) {
+        console.log('⚠️ Unknown interaction error, ignoring');
+        return;
+      }
       
       // Try to respond with error if interaction hasn't been acknowledged yet
       if (!interaction.replied && !interaction.deferred) {
         try {
           await interaction.reply({ 
             content: '❌ An error occurred while processing your command', 
-            ephemeral: true 
+            flags: InteractionResponseFlags.Ephemeral
           });
         } catch (replyError) {
           console.error('❌ Failed to send error reply:', replyError);
@@ -417,12 +426,12 @@ async function handleSendPodcastCommand(interaction: any): Promise<void> {
   if (authorizedUserId && interaction.user.id !== authorizedUserId) {
     await interaction.reply({ 
       content: '❌ You are not authorized to use this command.', 
-      ephemeral: true 
+      flags: InteractionResponseFlags.Ephemeral
     });
     return;
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: InteractionResponseFlags.Ephemeral });
 
   try {
     // Import the emailPodcast module to get recipients and send email
@@ -454,7 +463,7 @@ async function handleStatusCommand(interaction: any): Promise<void> {
   if (authorizedUserId && interaction.user.id !== authorizedUserId) {
     await interaction.reply({ 
       content: '❌ You are not authorized to use this command.', 
-      ephemeral: true 
+      flags: InteractionResponseFlags.Ephemeral
     });
     return;
   }
@@ -488,12 +497,12 @@ async function handleTestPodcastCommand(interaction: any): Promise<void> {
   if (authorizedUserId && interaction.user.id !== authorizedUserId) {
     await interaction.reply({ 
       content: '❌ You are not authorized to use this command.', 
-      ephemeral: true 
+      flags: InteractionResponseFlags.Ephemeral
     });
     return;
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: InteractionResponseFlags.Ephemeral });
 
   const recipient = interaction.options.getString('recipient');
 
