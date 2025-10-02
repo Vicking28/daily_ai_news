@@ -54,9 +54,16 @@ export function getEmailRecipients(): string[] {
     }
   }
 
-  // Fallback to EMAIL_TO (single email)
+  // Fallback to EMAIL_TO (could be single email or comma-separated list)
   if (process.env.EMAIL_TO) {
-    return [process.env.EMAIL_TO.trim()];
+    const recipients = process.env.EMAIL_TO
+      .split(',')
+      .map(email => email.trim())
+      .filter(email => email.length > 0);
+    
+    if (recipients.length > 0) {
+      return recipients;
+    }
   }
 
   // Default fallback
