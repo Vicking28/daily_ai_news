@@ -113,72 +113,7 @@ async function registerSlashCommands(): Promise<void> {
   const commands = [
     new SlashCommandBuilder()
       .setName('send-podcast')
-      .setDescription('Send daily podcast email manually')
-      .addStringOption(option => {
-        const stringOption = option
-          .setName('recipient1')
-          .setDescription('First email recipient (required)')
-          .setRequired(true);
-        
-        // Add choices for each email recipient
-        emailChoices.forEach(choice => {
-          stringOption.addChoices(choice);
-        });
-        
-        return stringOption;
-      })
-      .addStringOption(option => {
-        const stringOption = option
-          .setName('recipient2')
-          .setDescription('Second email recipient (optional)')
-          .setRequired(false);
-        
-        // Add choices for each email recipient
-        emailChoices.forEach(choice => {
-          stringOption.addChoices(choice);
-        });
-        
-        return stringOption;
-      })
-      .addStringOption(option => {
-        const stringOption = option
-          .setName('recipient3')
-          .setDescription('Third email recipient (optional)')
-          .setRequired(false);
-        
-        // Add choices for each email recipient
-        emailChoices.forEach(choice => {
-          stringOption.addChoices(choice);
-        });
-        
-        return stringOption;
-      })
-      .addStringOption(option => {
-        const stringOption = option
-          .setName('recipient4')
-          .setDescription('Fourth email recipient (optional)')
-          .setRequired(false);
-        
-        // Add choices for each email recipient
-        emailChoices.forEach(choice => {
-          stringOption.addChoices(choice);
-        });
-        
-        return stringOption;
-      })
-      .addStringOption(option => {
-        const stringOption = option
-          .setName('recipient5')
-          .setDescription('Fifth email recipient (optional)')
-          .setRequired(false);
-        
-        // Add choices for each email recipient
-        emailChoices.forEach(choice => {
-          stringOption.addChoices(choice);
-        });
-        
-        return stringOption;
-      }),
+      .setDescription('Send daily podcast email to all configured recipients'),
 
     new SlashCommandBuilder()
       .setName('status')
@@ -454,26 +389,18 @@ export function setupSlashCommandHandlers(): void {
 async function handleSendPodcastCommand(interaction: any): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
 
-  // Collect all recipient options (recipient1 is required, others are optional)
-  const recipientList: string[] = [];
-  
-  // Get all recipient options
-  for (let i = 1; i <= 5; i++) {
-    const recipient = interaction.options.getString(`recipient${i}`);
-    if (recipient && recipient.trim().length > 0) {
-      recipientList.push(recipient.trim());
-    }
-  }
-
-  // Remove duplicates while preserving order
-  const uniqueRecipients = [...new Set(recipientList)];
-
   try {
-    const { sendDailyPodcastEmail } = await import('./emailPodcast');
-    await sendDailyPodcastEmail(uniqueRecipients);
+    // Import the emailPodcast module to get recipients and send email
+    const { sendDailyPodcastEmail, getEmailRecipients } = await import('./emailPodcast');
+    
+    // Get all configured email recipients (same as daily runner)
+    const allRecipients = getEmailRecipients();
+    
+    // Send to all configured recipients
+    await sendDailyPodcastEmail(allRecipients);
     
     await interaction.editReply({
-      content: `✅ Daily podcast email sent successfully to ${uniqueRecipients.length} recipient(s): ${uniqueRecipients.join(', ')}`
+      content: `✅ Daily podcast email sent successfully to all ${allRecipients.length} configured recipient(s): ${allRecipients.join(', ')}`
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
