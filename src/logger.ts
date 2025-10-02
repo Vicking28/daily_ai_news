@@ -414,6 +414,9 @@ async function handleSendPodcastCommand(interaction: any): Promise<void> {
  * Handle the status slash command
  */
 async function handleStatusCommand(interaction: any): Promise<void> {
+  // Default to production if NODE_ENV is undefined
+  const nodeEnv = process.env.NODE_ENV || 'production';
+
   const embed = new EmbedBuilder()
     .setColor(0x00FF00) // Green
     .setTitle(':green_circle: Service Status')
@@ -421,7 +424,7 @@ async function handleStatusCommand(interaction: any): Promise<void> {
     .addFields(
       { name: 'Scheduler', value: 'Active (6:30 AM GMT+2)', inline: true },
       { name: 'Last Check', value: new Date().toLocaleString(), inline: true },
-      { name: 'Environment', value: process.env.NODE_ENV || 'development', inline: true }
+      { name: 'Environment', value: nodeEnv, inline: true }
     )
     .setTimestamp();
 
