@@ -222,7 +222,7 @@ export async function selectTopArticles(
   articles: Article[],
   opts: ArticleSelectionOptions = {}
 ): Promise<SelectedArticlesResult> {
-  const { maxCount = 15 } = opts;
+  const { maxCount = 10 } = opts;
   
   console.log(`🔍 Starting article selection from ${articles.length} total articles...`);
   

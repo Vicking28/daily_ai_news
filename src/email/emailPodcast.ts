@@ -79,7 +79,7 @@ export function getEmailRecipients(): string[] {
  * @returns HTML email content
  */
 export function generateEmailContent(selectedArticles: Article[], scriptLength: number, actualDuration: number): string {
-  const bulletpointHtml = buildBulletHtmlFromSelected(selectedArticles, 10);
+  const bulletpointHtml = buildBulletHtmlFromSelected(selectedArticles, selectedArticles.length);
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -138,7 +138,7 @@ export async function sendDailyPodcastEmail(recipients?: string[]): Promise<void
     await logNewsCollection(allArticles.length, 12); // Assuming 12 RSS sources
 
     console.log('🔍 Step 2: Selecting top AI articles...');
-    const { selectedIds } = await selectTopArticles(allArticles, { maxCount: 18 });
+    const { selectedIds } = await selectTopArticles(allArticles, { maxCount: 10 });
     const selectedArticles = allArticles.filter(article => selectedIds.includes(article.id));
     console.log(`✅ Selected ${selectedArticles.length} articles for podcast\n`);
     await logInfo(`Selected ${selectedArticles.length} articles from ${allArticles.length} total articles`);
