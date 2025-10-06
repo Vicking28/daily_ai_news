@@ -22,23 +22,36 @@ A TypeScript project for gathering AI news from multiple RSS feeds, generating A
 
 ```
 daily_ai_news/
-├── src/                    # Source TypeScript files
-│   ├── emailPodcast.ts    # Main daily podcast email automation
-│   ├── dailyRunner.ts     # Daily scheduler with cron job
-│   ├── rssFetcher.ts      # RSS feed aggregation
-│   ├── podcastGenerator.ts # AI-powered podcast script generation
-│   ├── tts.ts             # Text-to-speech conversion
-│   └── testEmailPodcast.ts # Main application entry point
-├── output/                # Generated files (ignored by git)
-│   ├── podcast_YYYY-MM-DD.mp3 # Generated podcast audio with timestamp
-│   └── podcast_YYYY-MM-DD.txt # Generated podcast script with timestamp
-├── dist/                  # Compiled JavaScript output
-├── .env.example          # Environment variables template
-├── .gitignore            # Git ignore rules
-├── eslint.config.js      # ESLint configuration
-├── .prettierrc           # Prettier configuration
-├── tsconfig.json         # TypeScript configuration
-└── package.json          # Node.js dependencies and scripts
+├── src/                           # Source TypeScript files
+│   ├── core/                      # Core functionality
+│   │   ├── rssFetcher.ts         # RSS feed aggregation
+│   │   └── selectArticles.ts     # AI-powered article selection
+│   ├── ai/                        # AI-related functionality
+│   │   └── podcastGenerator.ts   # AI-powered podcast script generation
+│   ├── email/                     # Email functionality
+│   │   └── emailPodcast.ts       # Main daily podcast email automation
+│   ├── audio/                     # Audio processing
+│   │   └── tts.ts                # Text-to-speech conversion
+│   ├── scheduler/                 # Scheduling and runners
+│   │   ├── dailyRunner.ts        # Daily scheduler with cron job
+│   │   ├── testRunner.ts         # Test runner with limited articles
+│   │   └── testEmailPodcast.ts   # Main application entry point
+│   ├── utils/                     # Utility functions
+│   │   ├── logger.ts             # Discord logging and slash commands
+│   │   ├── textUtils.ts          # Text processing utilities
+│   │   └── utils.ts              # General utilities
+│   └── types/                     # Type definitions
+│       └── types.ts              # TypeScript type definitions
+├── output/                        # Generated files (ignored by git)
+│   ├── podcast_YYYY-MM-DD.mp3    # Generated podcast audio with timestamp
+│   └── podcast_YYYY-MM-DD.txt    # Generated podcast script with timestamp
+├── dist/                          # Compiled JavaScript output
+├── .env.example                   # Environment variables template
+├── .gitignore                     # Git ignore rules
+├── eslint.config.js               # ESLint configuration
+├── .prettierrc                    # Prettier configuration
+├── tsconfig.json                  # TypeScript configuration
+└── package.json                   # Node.js dependencies and scripts
 ```
 
 ## 🛠️ Setup Instructions

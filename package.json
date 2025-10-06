@@ -1,15 +1,16 @@
 {
   "name": "daily_ai_news",
   "version": "1.0.0",
-  "main": "dist/testEmailPodcast.js",
+  "main": "dist/scheduler/testEmailPodcast.js",
   "scripts": {
     "build": "tsc",
-    "dev": "ts-node src/dailyRunner.ts --test",
-    "start:test": "ts-node src/testRunner.ts",
-    "start": "node dist/testEmailPodcast.js",
-    "start:daily": "ts-node src/dailyRunner.ts",
-    "send:podcast": "ts-node src/testEmailPodcast.ts",
-    "send:podcast:custom": "ts-node src/testEmailPodcast.ts",
+    "dev": "ts-node src/scheduler/dailyRunner.ts",
+    "test": "ts-node src/scheduler/dailyRunner.ts --test",
+    "start:test": "ts-node src/scheduler/testRunner.ts",
+    "start": "node dist/scheduler/testEmailPodcast.js",
+    "start:daily": "ts-node src/scheduler/dailyRunner.ts",
+    "send:podcast": "ts-node src/scheduler/testEmailPodcast.ts",
+    "send:podcast:custom": "ts-node src/scheduler/testEmailPodcast.ts",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write src/**/*.ts"

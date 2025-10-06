@@ -59,6 +59,9 @@ export async function synthesizePodcast(script: string): Promise<Buffer> {
     );
   }
 
+  // Get voice ID from environment or use default
+  const voiceId = process.env.DEEPGRAM_VOICE_ID || 'aura-asteria-en';
+
   if (!script || script.trim().length === 0) {
     throw new Error('Script cannot be empty');
   }
@@ -75,7 +78,7 @@ export async function synthesizePodcast(script: string): Promise<Buffer> {
     console.log(`📄 Script split into ${textChunks.length} chunks for processing`);
 
     console.log('🔊 Synthesizing speech with Deepgram...');
-    console.log(`🎭 Using voice: aura-asteria-en`);
+    console.log(`🎭 Using voice: ${voiceId}`);
     console.log(`🎵 Output format: MP3`);
 
     // Process each chunk and combine audio
@@ -89,7 +92,7 @@ export async function synthesizePodcast(script: string): Promise<Buffer> {
       const response = await (deepgram as any).speak.request(
         { text: chunk },
         {
-          model: 'aura-asteria-en',
+          model: voiceId,
           encoding: 'mp3',
         }
       );

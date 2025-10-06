@@ -1,11 +1,11 @@
 import dotenv from 'dotenv';
-import { fetchAllFeeds } from './rssFetcher';
-import { generatePodcastScriptFromSelected } from './podcastGenerator';
-import { selectTopArticles, buildBulletHtmlFromSelected } from './selectArticles';
-import { synthesizePodcast, getMP3Duration, formatDuration } from './tts';
-import { createTransporter, getEmailRecipients, generateEmailContent } from './emailPodcast';
-import { logProcessStart, logSuccess, logError, logInfo, logNewsCollection, logPodcastGeneration, logAudioSynthesis, logEmailSent } from './logger';
-import { Article } from './types';
+import { fetchAllFeedsLimited } from '../core/rssFetcher';
+import { generatePodcastScriptFromSelected } from '../ai/podcastGenerator';
+import { selectTopArticles, buildBulletHtmlFromSelected } from '../core/selectArticles';
+import { synthesizePodcast, getMP3Duration, formatDuration } from '../audio/tts';
+import { createTransporter, getEmailRecipients, generateEmailContent } from '../email/emailPodcast';
+import { logProcessStart, logSuccess, logError, logInfo, logNewsCollection, logPodcastGeneration, logAudioSynthesis, logEmailSent } from '../utils/logger';
+import { Article } from '../types/types';
 
 // Load environment variables
 dotenv.config();
@@ -18,7 +18,8 @@ dotenv.config();
  */
 
 // Limit articles for testing (reduces API costs and processing time)
-const TEST_ARTICLE_LIMIT = 10;
+const TEST_TOTAL_ARTICLES_LIMIT = 50; // Total articles to fetch from all feeds
+const TEST_SELECTED_ARTICLES_LIMIT = 10; // Articles to select from the limited set
 
 
 
@@ -28,22 +29,22 @@ const TEST_ARTICLE_LIMIT = 10;
  */
 export async function sendTestPodcastEmail(recipients?: string[]): Promise<void> {
   console.log('🧪 Starting TEST podcast email generation...\n');
-  await logProcessStart('Test podcast email generation', `Limited to ${TEST_ARTICLE_LIMIT} articles`);
+  await logProcessStart('Test podcast email generation', `Limited to ${TEST_TOTAL_ARTICLES_LIMIT} total articles, selecting ${TEST_SELECTED_ARTICLES_LIMIT}`);
 
   // Generate timestamp for all files
   const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
   try {
     // PASS A: Article Selection (with test limit)
-    console.log('📡 Step 1: Fetching RSS feeds (TEST MODE)...');
-    const allArticles = await fetchAllFeeds();
-    console.log(`✅ Fetched ${allArticles.length} total articles\n`);
+    console.log('📡 Step 1: Fetching RSS feeds (TEST MODE - LIMITED)...');
+    const allArticles = await fetchAllFeedsLimited(TEST_TOTAL_ARTICLES_LIMIT);
+    console.log(`✅ Fetched ${allArticles.length} total articles (LIMITED)\n`);
     
     await logNewsCollection(allArticles.length, 12); // Assuming 12 RSS sources
 
     console.log('🔍 Step 2: Selecting top AI articles (TEST MODE)...');
-    const { selectedIds } = await selectTopArticles(allArticles, { maxCount: TEST_ARTICLE_LIMIT });
-    const selectedArticles = allArticles.filter(article => selectedIds.includes(article.id));
+    const { selectedIds } = await selectTopArticles(allArticles, { maxCount: TEST_SELECTED_ARTICLES_LIMIT });
+    const selectedArticles = allArticles.filter((article: Article) => selectedIds.includes(article.id));
     console.log(`✅ Selected ${selectedArticles.length} articles for TEST podcast\n`);
     await logInfo(`Selected ${selectedArticles.length} articles from ${allArticles.length} total articles for test`);
 
@@ -154,7 +155,8 @@ export async function sendTestPodcastEmail(recipients?: string[]): Promise<void>
 async function runTest(): Promise<void> {
   console.log('🧪 Starting Daily AI News Podcast TEST Runner...\n');
   console.log(`📋 Test Configuration:`);
-  console.log(`   - Article Limit: ${TEST_ARTICLE_LIMIT} articles`);
+  console.log(`   - Total Articles Fetched: ${TEST_TOTAL_ARTICLES_LIMIT} articles`);
+  console.log(`   - Selected Articles: ${TEST_SELECTED_ARTICLES_LIMIT} articles`);
   console.log(`   - Mode: TEST (reduced API usage)`);
   console.log(`   - Files: podcast_test_YYYY-MM-DD.*\n`);
 

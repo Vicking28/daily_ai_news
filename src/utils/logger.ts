@@ -41,7 +41,7 @@ async function initializeDiscord(): Promise<void> {
       if (discordClient!.readyAt) {
         resolve();
       } else {
-        discordClient!.once('ready', () => resolve());
+        discordClient!.once('clientReady', () => resolve());
       }
     });
 
@@ -435,7 +435,7 @@ async function handleSendPodcastCommand(interaction: any): Promise<void> {
 
   try {
     // Import the emailPodcast module to get recipients and send email
-    const { sendDailyPodcastEmail, getEmailRecipients } = await import('./emailPodcast');
+    const { sendDailyPodcastEmail, getEmailRecipients } = await import('../email/emailPodcast');
     
     // Get all configured email recipients (same as daily runner)
     const allRecipients = getEmailRecipients();
@@ -508,7 +508,7 @@ async function handleTestPodcastCommand(interaction: any): Promise<void> {
 
   try {
     // Dynamic import to avoid circular dependency
-    const testRunner = await import('./testRunner');
+    const testRunner = await import('../scheduler/testRunner');
     await testRunner.sendTestPodcastEmail([recipient]);
     
     await interaction.editReply({

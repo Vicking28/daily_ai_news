@@ -1,11 +1,11 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import dotenv from 'dotenv';
-import { fetchAllFeeds } from './rssFetcher';
-import { generatePodcastScriptFromSelected } from './podcastGenerator';
-import { selectTopArticles, buildBulletHtmlFromSelected } from './selectArticles';
-import { synthesizePodcast, getMP3Duration, formatDuration } from './tts';
-import { logProcessStart, logSuccess, logError, logInfo, logNewsCollection, logPodcastGeneration, logAudioSynthesis, logEmailSent } from './logger';
-import { Article } from './types';
+import { fetchAllFeeds } from '../core/rssFetcher';
+import { generatePodcastScriptFromSelected } from '../ai/podcastGenerator';
+import { selectTopArticles, buildBulletHtmlFromSelected } from '../core/selectArticles';
+import { synthesizePodcast, getMP3Duration, formatDuration } from '../audio/tts';
+import { logProcessStart, logSuccess, logError, logInfo, logNewsCollection, logPodcastGeneration, logAudioSynthesis, logEmailSent } from '../utils/logger';
+import { Article } from '../types/types';
 
 // Load environment variables
 dotenv.config();

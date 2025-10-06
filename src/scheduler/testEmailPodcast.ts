@@ -1,4 +1,4 @@
-import { sendDailyPodcastEmail } from './emailPodcast';
+import { sendDailyPodcastEmail } from '../email/emailPodcast';
 
 /**
  * Test script for daily AI podcast email functionality

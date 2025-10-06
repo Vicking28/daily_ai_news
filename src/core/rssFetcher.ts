@@ -1,7 +1,7 @@
 import Parser from 'rss-parser';
 import striptags from 'striptags';
 import crypto from 'crypto';
-import { Article } from './types';
+import { Article } from '../types/types';
 
 // RSS Parser instance
 const parser = new Parser();
@@ -161,6 +161,80 @@ export async function fetchAllFeeds(): Promise<Article[]> {
     );
 
     return allArticles;
+  } catch (error) {
+    console.error('💥 Error fetching RSS feeds:', error);
+    throw error;
+  }
+}
+
+/**
+ * Fetches RSS feeds with a limit on total articles (for testing)
+ * @param maxTotalArticles - Maximum total articles to fetch across all feeds
+ * @returns Array of limited normalized articles from all feeds
+ */
+export async function fetchAllFeedsLimited(maxTotalArticles: number = 50): Promise<Article[]> {
+  console.log('🚀 Starting LIMITED RSS feed fetch for testing...');
+  console.log(`📋 Total feeds to fetch: ${RSS_FEEDS.length}`);
+  console.log(`🔢 Max total articles: ${maxTotalArticles}\n`);
+
+  try {
+    // Calculate articles per feed (distribute evenly)
+    const articlesPerFeed = Math.ceil(maxTotalArticles / RSS_FEEDS.length);
+    console.log(`📊 Articles per feed: ~${articlesPerFeed}\n`);
+
+    // Fetch all feeds in parallel with individual limits
+    const feedPromises = RSS_FEEDS.map(async (feedUrl) => {
+      try {
+        console.log(`📡 Fetching feed: ${feedUrl}`);
+        const feed = await parser.parseURL(feedUrl);
+        const sourceName = extractSourceName(feedUrl);
+
+        // Limit articles from this feed
+        const limitedItems = feed.items.slice(0, articlesPerFeed);
+
+        const articles: Article[] = limitedItems.map((item) => {
+          const title = item.title || 'Untitled';
+          const link = item.link || '';
+          const source = sourceName;
+          
+          return {
+            id: generateArticleId(link, title, source),
+            source,
+            title,
+            link,
+            pubDate: item.pubDate || item.isoDate || new Date().toISOString(),
+            summary: cleanHtmlContent(
+              item.contentSnippet || item.content || item.description || ''
+            ),
+          };
+        });
+
+        console.log(`✅ Fetched ${articles.length} articles from ${sourceName}`);
+        return articles;
+      } catch (error) {
+        console.error(`❌ Failed to fetch feed ${feedUrl}:`, error);
+        return [];
+      }
+    });
+
+    const feedResults = await Promise.all(feedPromises);
+
+    // Flatten all articles into a single array
+    const allArticles = feedResults.flat();
+
+    // Sort by publication date (newest first)
+    allArticles.sort(
+      (a, b) => new Date(b.pubDate || 0).getTime() - new Date(a.pubDate || 0).getTime()
+    );
+
+    // Final limit to ensure we don't exceed the max
+    const finalArticles = allArticles.slice(0, maxTotalArticles);
+
+    console.log(
+      `\n🎉 Successfully fetched ${finalArticles.length} total articles from ${RSS_FEEDS.length} feeds (LIMITED)`
+    );
+
+    return finalArticles;
   } catch (error) {
     console.error('💥 Error fetching RSS feeds:', error);
     throw error;

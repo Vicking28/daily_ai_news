@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import dotenv from 'dotenv';
-import { sendDailyPodcastEmail } from './emailPodcast';
-import { logProcessStart, logSuccess, logError, initializeDiscordLogger } from './logger';
+import { sendDailyPodcastEmail } from '../email/emailPodcast';
+import { logProcessStart, logSuccess, logError, initializeDiscordLogger } from '../utils/logger';
 
 // Load environment variables
 dotenv.config();

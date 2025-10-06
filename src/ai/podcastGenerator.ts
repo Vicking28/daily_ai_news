@@ -1,5 +1,5 @@
 import { OpenAI } from 'openai';
-import { Article } from './types';
+import { Article } from '../types/types';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
